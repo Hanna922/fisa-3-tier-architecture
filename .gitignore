@@ -17,3 +17,7 @@ Thumbs.db
 **/*.dat
 # jdbc.properties
 jdbc.properties
+
+# Eclipse 프로젝트 IDE 설정 (팀원마다 환경이 다름)
+.classpath
+.settings/
