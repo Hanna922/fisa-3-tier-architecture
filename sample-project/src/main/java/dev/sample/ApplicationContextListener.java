@@ -1,5 +1,9 @@
 package dev.sample;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Properties;
+
 import javax.servlet.ServletContext;
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
@@ -12,42 +16,60 @@ import com.zaxxer.hikari.HikariDataSource;
 @WebListener
 public class ApplicationContextListener implements ServletContextListener {
 
-    private HikariDataSource ds;
+    private HikariDataSource sourceDs;
+    private HikariDataSource replicaDs;
 
     @Override
     public void contextInitialized(ServletContextEvent sce) {
         ServletContext ctx = sce.getServletContext();
-        
-        try {
-			Class.forName("com.mysql.cj.jdbc.Driver");
-		} catch (ClassNotFoundException e) {
-			e.printStackTrace();
-		}
 
-        HikariConfig config = new HikariConfig();
-        // 필수 설정값(별도의 설정파일로 분리 가능, ex. jdbc.properties)
-        config.setJdbcUrl("jdbc:mysql://localhost:3306/card_db?serverTimezone=Asia/Seoul");
-        config.setUsername("root");
-        config.setPassword("1234");
+        Properties props = loadJdbcProperties();
 
-        // 선택 설정값 예시
-//        config.setMaximumPoolSize(10);
-//        config.setMinimumIdle(2);
-//        config.setConnectionTimeout(3000);
-//        config.setIdleTimeout(600000);
-//        config.setMaxLifetime(1800000);
+        // Source DataSource: 쓰기/읽기 모두 처리
+        HikariConfig sourceConfig = new HikariConfig();
+        sourceConfig.setJdbcUrl(props.getProperty("source.url"));
+        sourceConfig.setUsername(props.getProperty("source.username"));
+        sourceConfig.setPassword(props.getProperty("source.password"));
+        sourceDs = new HikariDataSource(sourceConfig);
+        ctx.setAttribute("SOURCE_DS", sourceDs);
 
-        ds = new HikariDataSource(config);
-
-        ctx.setAttribute("DATA_SOURCE", ds);
+        // Replica DataSource: 읽기 전용
+        HikariConfig replicaConfig = new HikariConfig();
+        replicaConfig.setJdbcUrl(props.getProperty("replica.url"));
+        replicaConfig.setUsername(props.getProperty("replica.username"));
+        replicaConfig.setPassword(props.getProperty("replica.password"));
+        replicaDs = new HikariDataSource(replicaConfig);
+        ctx.setAttribute("REPLICA_DS", replicaDs);
     }
 
     @Override
     public void contextDestroyed(ServletContextEvent sce) {
-        if (ds != null) ds.close(); // 애플리케이션 종료 시 커넥션 풀 자원해제
+        if (sourceDs != null) sourceDs.close();
+        if (replicaDs != null) replicaDs.close();
     }
 
-    public static DataSource getDataSource(ServletContext ctx) {
-        return (DataSource) ctx.getAttribute("DATA_SOURCE");
+    public static DataSource getSourceDataSource(ServletContext ctx) {
+        return (DataSource) ctx.getAttribute("SOURCE_DS");
+    }
+
+    public static DataSource getReplicaDataSource(ServletContext ctx) {
+        return (DataSource) ctx.getAttribute("REPLICA_DS");
+    }
+
+    private Properties loadJdbcProperties() {
+        Properties props = new Properties();
+        ClassLoader cl = Thread.currentThread().getContextClassLoader();
+
+        try (InputStream is = cl.getResourceAsStream("jdbc.properties")) {
+            if (is == null) {
+                throw new RuntimeException("jdbc.properties를 클래스패스에서 찾을 수 없습니다.");
+            }
+        
+            props.load(is);
+        } catch (IOException e) {
+            throw new RuntimeException("jdbc.properties 로딩 실패", e);
+        }
+        
+        return props;
     }
 }
