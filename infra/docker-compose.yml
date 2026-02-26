@@ -13,14 +13,11 @@ services:
     container_name: fisa-nginx
     ports:
       - "80:80"
-    depends_on:
-      - mysql-source
-      - mysql-replica
     networks:
       - fisa-network
     restart: unless-stopped
 
-  # MySQL Source 
+  # MySQL Source
   mysql-source:
     build:
       context: ./mysql-source
