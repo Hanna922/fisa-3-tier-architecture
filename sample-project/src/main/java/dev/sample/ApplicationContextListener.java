@@ -13,11 +13,15 @@ import javax.sql.DataSource;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
+import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.JedisPoolConfig;
+
 @WebListener
 public class ApplicationContextListener implements ServletContextListener {
 
     private HikariDataSource sourceDs;
     private HikariDataSource replicaDs;
+    private JedisPool jedisPool;
 
     @Override
     public void contextInitialized(ServletContextEvent sce) {
@@ -42,12 +46,21 @@ public class ApplicationContextListener implements ServletContextListener {
         replicaConfig.setPassword(props.getProperty("replica.password"));
         replicaDs = new HikariDataSource(replicaConfig);
         ctx.setAttribute("REPLICA_DS", replicaDs);
+
+        // Redis 커넥션 풀
+        jedisPool = new JedisPool(
+            new JedisPoolConfig(),
+            props.getProperty("redis.host"),
+            Integer.parseInt(props.getProperty("redis.port"))
+        );
+        ctx.setAttribute("JEDIS_POOL", jedisPool);
     }
 
     @Override
     public void contextDestroyed(ServletContextEvent sce) {
-        if (sourceDs != null) sourceDs.close();
+        if (sourceDs  != null) sourceDs.close();
         if (replicaDs != null) replicaDs.close();
+        if (jedisPool != null) jedisPool.close();
     }
 
     public static DataSource getSourceDataSource(ServletContext ctx) {
@@ -58,6 +71,10 @@ public class ApplicationContextListener implements ServletContextListener {
         return (DataSource) ctx.getAttribute("REPLICA_DS");
     }
 
+    public static JedisPool getJedisPool(ServletContext ctx) {
+        return (JedisPool) ctx.getAttribute("JEDIS_POOL");
+    }
+
     private Properties loadJdbcProperties() {
         Properties props = new Properties();
         ClassLoader cl = Thread.currentThread().getContextClassLoader();
@@ -66,12 +83,11 @@ public class ApplicationContextListener implements ServletContextListener {
             if (is == null) {
                 throw new RuntimeException("jdbc.properties를 클래스패스에서 찾을 수 없습니다.");
             }
-        
             props.load(is);
         } catch (IOException e) {
             throw new RuntimeException("jdbc.properties 로딩 실패", e);
         }
-        
+
         return props;
     }
 }

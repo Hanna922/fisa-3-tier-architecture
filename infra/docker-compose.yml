@@ -65,6 +65,16 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Redis
+  redis:
+    image: redis:7.2-alpine
+    container_name: fisa-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - fisa-network
+    restart: unless-stopped
+
 # Named Volumes - MySQL 데이터 영속성
 volumes:
   mysql-source-data:
