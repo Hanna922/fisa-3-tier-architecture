@@ -6,16 +6,16 @@
 
 services:
   # Nginx (nginx.conf 작성 후 주석 해제)
-  # nginx:
-  #   build:
-  #     context: ./nginx
-  #     dockerfile: Dockerfile
-  #   container_name: fisa-nginx
-  #   ports:
-  #     - "80:80"
-  #   networks:
-  #     - fisa-network
-  #   restart: unless-stopped
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: fisa-nginx
+    ports:
+      - "80:80"
+    networks:
+      - fisa-network
+    restart: unless-stopped
 
   # MySQL Source
   mysql-source:
