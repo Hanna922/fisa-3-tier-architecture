@@ -15,3 +15,5 @@ Thumbs.db
 
 # 대용량 데이터 파일
 **/*.dat
+# jdbc.properties
+jdbc.properties
