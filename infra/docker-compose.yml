@@ -6,19 +6,21 @@
 
 services:
   # Nginx (nginx.conf 작성 후 주석 해제)
-  # nginx:
-  #   build:
-  #     context: ./nginx
-  #     dockerfile: Dockerfile
-  #   container_name: fisa-nginx
-  #   ports:
-  #     - "80:80"
-  #   depends_on:
-  #     - mysql-source
-  #     - mysql-replica
-  #   networks:
-  #     - fisa-network
-  #   restart: unless-stopped
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: fisa-nginx
+    ports:
+      - "80:80"
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway" # 호스트 IP 매핑 추가
+    depends_on:
+      - mysql-source
+      - mysql-replica
+    networks:
+      - fisa-network
+    restart: unless-stopped
 
   # MySQL Source 
   mysql-source:
