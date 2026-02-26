@@ -21,6 +21,7 @@ WITH single_scan AS (
     AVG(HOS_AM)       AS total_hospital,
     AVG(RESTRNT_AM)   AS total_restaurant,
     AVG(FUEL_AM)      AS total_fuel
+  WHERE LIFE_STAGE = ?
   FROM card_transaction
 )
 SELECT
