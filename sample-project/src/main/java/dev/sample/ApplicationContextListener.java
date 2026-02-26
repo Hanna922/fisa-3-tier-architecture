@@ -27,6 +27,7 @@ public class ApplicationContextListener implements ServletContextListener {
 
         // Source DataSource: 쓰기/읽기 모두 처리
         HikariConfig sourceConfig = new HikariConfig();
+        sourceConfig.setDriverClassName("com.mysql.cj.jdbc.Driver");
         sourceConfig.setJdbcUrl(props.getProperty("source.url"));
         sourceConfig.setUsername(props.getProperty("source.username"));
         sourceConfig.setPassword(props.getProperty("source.password"));
@@ -35,6 +36,7 @@ public class ApplicationContextListener implements ServletContextListener {
 
         // Replica DataSource: 읽기 전용
         HikariConfig replicaConfig = new HikariConfig();
+        replicaConfig.setDriverClassName("com.mysql.cj.jdbc.Driver");
         replicaConfig.setJdbcUrl(props.getProperty("replica.url"));
         replicaConfig.setUsername(props.getProperty("replica.username"));
         replicaConfig.setPassword(props.getProperty("replica.password"));
