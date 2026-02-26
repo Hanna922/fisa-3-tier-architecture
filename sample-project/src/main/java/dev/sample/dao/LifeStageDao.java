@@ -27,8 +27,15 @@ public class LifeStageDao {
     public List<Map<String, Object>> findAll() {
         List<Map<String, Object>> result = new ArrayList<>();
 
-        // TODO: 아래 SQL을 실제 테이블 구조에 맞게 작성
-        String sql = "SELECT * FROM life_stages";
+        // TODO: 필요 시 집계 컬럼, 조건, 정렬 방식을 변경
+        String sql = "SELECT LIFE_STAGE" +
+                     "     , COUNT(*)           AS CNT" +
+                     "     , SUM(TOT_USE_AM)    AS TOT_USE_AM" +
+                     "     , SUM(CRDSL_USE_AM)  AS CRDSL_USE_AM" +
+                     "     , SUM(CNF_USE_AM)    AS CNF_USE_AM" +
+                     "  FROM CARD_TRANSACTION" +
+                     " GROUP BY LIFE_STAGE" +
+                     " ORDER BY LIFE_STAGE";
 
         try (Connection conn = dataSource.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql);
