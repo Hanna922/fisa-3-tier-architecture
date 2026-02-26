@@ -1,0 +1,9 @@
+# Source DB (쓰기/읽기)
+source.url=jdbc:mysql://localhost:3307/card_db?serverTimezone=Asia/Seoul
+source.username=
+source.password=
+
+# Replica DB (읽기 전용)
+replica.url=jdbc:mysql://localhost:3308/card_db?serverTimezone=Asia/Seoul
+replica.username=
+replica.password=
