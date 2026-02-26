@@ -13,8 +13,6 @@ services:
     container_name: fisa-nginx
     ports:
       - "80:80"
-    # extra_hosts:
-    #   - "host.docker.internal:host-gateway" # 호스트 IP 매핑 추가
     depends_on:
       - mysql-source
       - mysql-replica
