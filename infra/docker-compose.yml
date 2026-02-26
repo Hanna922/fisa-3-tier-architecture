@@ -1,0 +1,78 @@
+# ============================================================
+# - Nginx     : 로드 밸런서 (→ 로컬 Tomcat)
+# - MySQL Source  : 쓰기 전용 (Master)
+# - MySQL Replica : 읽기 전용 (Slave)
+# ============================================================
+
+services:
+  # Nginx (nginx.conf 작성 후 주석 해제)
+  # nginx:
+  #   build:
+  #     context: ./nginx
+  #     dockerfile: Dockerfile
+  #   container_name: fisa-nginx
+  #   ports:
+  #     - "80:80"
+  #   depends_on:
+  #     - mysql-source
+  #     - mysql-replica
+  #   networks:
+  #     - fisa-network
+  #   restart: unless-stopped
+
+  # MySQL Source 
+  mysql-source:
+    build:
+      context: ./mysql-source
+      dockerfile: Dockerfile
+    container_name: fisa-mysql-source
+    ports:
+      - "3307:3306"     
+    environment:
+      MYSQL_ROOT_PASSWORD: 1234
+      MYSQL_DATABASE: card_db
+      MYSQL_USER: fisa
+      MYSQL_PASSWORD: 1234
+    volumes:
+      - mysql-source-data:/var/lib/mysql
+      - ./mysql-source/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - fisa-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p1234"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MySQL Replica 
+  mysql-replica:
+    build:
+      context: ./mysql-replica
+      dockerfile: Dockerfile
+    container_name: fisa-mysql-replica
+    ports:
+      - "3308:3306"     
+    environment:
+      MYSQL_ROOT_PASSWORD: 1234
+      MYSQL_DATABASE: card_db
+      MYSQL_USER: fisa
+      MYSQL_PASSWORD: 1234
+    volumes:
+      - mysql-replica-data:/var/lib/mysql
+    networks:
+      - fisa-network
+    depends_on:
+      mysql-source:
+        condition: service_healthy
+    restart: unless-stopped
+
+# Named Volumes - MySQL 데이터 영속성
+volumes:
+  mysql-source-data:
+  mysql-replica-data:
+
+# Network
+networks:
+  fisa-network:
+    driver: bridge
