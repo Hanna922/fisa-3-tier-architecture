@@ -1,0 +1,14 @@
+# Eclipse 워크스페이스 설정
+.metadata/
+
+# Eclipse 서버 설정 (Tomcat 경로가 팀원마다 다름)
+Servers/
+
+# 빌드 결과물
+*.class
+build/
+bin/
+
+# OS
+.DS_Store
+Thumbs.db
