@@ -1,5 +1,9 @@
 package dev.sample.dao;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -8,7 +12,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import javax.servlet.ServletContext;
 import javax.sql.DataSource;
 
 public class LifeStageDao {
@@ -59,4 +65,108 @@ public class LifeStageDao {
 
         return result;
     }
+    
+    private String readSQLFile(ServletContext ctx, String filename) throws IOException {
+    	String path = "/src/main/resources/" + filename + ".sql";
+    	InputStream is = ctx.getResourceAsStream(path); 
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
+            return br.lines().collect(Collectors.joining("\n"));
+        } 
+    }
+
+	public List<Map<String, Object>> findMembershipTierByLifestageMock(String lifeStage) {
+		List<Map<String, Object>> mockResults = new ArrayList<>();
+
+	    // 데이터 1: MBR_RK 25
+	    Map<String, Object> row1 = new LinkedHashMap<>();
+	    row1.put("LIFE_STAGE", lifeStage);
+	    row1.put("MBR_RK", 000);
+	    row1.put("CNT", 000);
+	    row1.put("RATIO_PCT", 000.0);
+	    mockResults.add(row1);
+
+	    // 데이터 2: MBR_RK 24
+	    Map<String, Object> row2 = new LinkedHashMap<>();
+	    row2.put("LIFE_STAGE", lifeStage);
+	    row2.put("MBR_RK", 000);
+	    row2.put("CNT", 000);
+	    row2.put("RATIO_PCT", 000.0);
+	    mockResults.add(row2);
+
+	    // 데이터 3: MBR_RK 23
+	    Map<String, Object> row3 = new LinkedHashMap<>();
+	    row3.put("LIFE_STAGE", lifeStage);
+	    row3.put("MBR_RK", 000);
+	    row3.put("CNT", 000);
+	    row3.put("RATIO_PCT", 000.0);
+	    mockResults.add(row3);
+
+	    // 데이터 4: MBR_RK 22
+	    Map<String, Object> row4 = new LinkedHashMap<>();
+	    row4.put("LIFE_STAGE", lifeStage);
+	    row4.put("MBR_RK", 000);
+	    row4.put("CNT", 000);
+	    row4.put("RATIO_PCT", 000.0);
+	    mockResults.add(row4);
+
+	    // 데이터 5: MBR_RK 21
+	    Map<String, Object> row5 = new LinkedHashMap<>();
+	    row5.put("LIFE_STAGE", lifeStage);
+	    row5.put("MBR_RK", 000);
+	    row5.put("CNT", 000);
+	    row5.put("RATIO_PCT", 000.0);
+	    mockResults.add(row5);
+
+	    return mockResults;
+	}
+	
+	public List<Map<String, Object>> findConsumptionTypeByLifeStageMock(String lifeStage) {
+	    List<Map<String, Object>> mockResults = new ArrayList<>();
+
+	    // 제공해주신 쿼리 결과를 한 줄(Row)로 생성
+	    Map<String, Object> row = new LinkedHashMap<>();
+	    row.put("LIFE_STAGE", lifeStage);      // UNI
+	    row.put("ESSENTIAL_AMT", 000L);    // 필수 소비 금액
+	    row.put("OPTIONAL_AMT", 000L);     // 선택 소비 금액
+
+	    mockResults.add(row);
+	    return mockResults;
+	}
+	
+	public List<Map<String, Object>> findTop5ByLifeStageMock(String lifeStage) {
+	    List<Map<String, Object>> mockResults = new ArrayList<>();
+
+	    // 순위 데이터 정의 (표 데이터 그대로 입력)
+	    Object[][] data = {
+	        {"AAA", 000L, 1},
+	        {"AAA", 000L, 2},
+	        {"AAA", 000L, 3},
+	        {"AAA", 000L, 4},
+	        {"AAA", 000L, 5}
+	    };
+
+	    for (Object[] obj : data) {
+	        Map<String, Object> row = new LinkedHashMap<>();
+	        row.put("LIFE_STAGE", lifeStage);
+	        row.put("CATEGORY", obj[0]);
+	        row.put("TOTAL_AMT", obj[1]);
+	        row.put("RNK", obj[2]);
+	        mockResults.add(row);
+	    }
+
+	    return mockResults;
+	}
+
+	public List<Map<String, Object>> findCreditOfCheckByLifeStageMock(String lifeStage) {
+		List<Map<String, Object>> mockResults = new ArrayList<>();
+
+        // 쿼리 결과 한 줄(Row)을 Map 형태로 생성
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("LIFE_STAGE", lifeStage);      // UNI
+        row.put("CRDSL_USE_AM", 000L);    // 신용카드 이용 금액
+    	row.put("CNF_USE_AM", 000L);      // 체크카드 이용 금액
+
+    	mockResults.add(row);
+    	return mockResults;
+	}
 }
