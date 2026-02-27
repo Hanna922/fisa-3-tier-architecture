@@ -1,11 +1,51 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
+<head>
+    <meta charset="UTF-8">
     <title>Life Stages</title>
-  </head>
-  <body>
-    <h1>Life Stages</h1>
-    <p>준비 중 (쿼리 구현 후 수정 예정)</p>
-  </body>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; padding: 20px; line-height: 1.6; }
+        h1 { color: #333; }
+        .container { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+        
+        /* 버튼 스타일 */
+        .stage-btn {
+            padding: 12px 24px;
+            font-size: 14px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .stage-btn:hover { background-color: #e2e6ea; border-color: #adb5bd; }
+        .stage-btn:active { background-color: #dae0e5; }
+
+        .info-box {
+            padding: 15px;
+            background-color: #e9ecef;
+            border-radius: 8px;
+            margin-top: 30px;
+        }
+        .port-highlight { color: #007bff; font-weight: bold; font-size: 1.2em; }
+    </style>
+</head>
+<body>
+
+    <h1>라이프 스테이지 선택 페이지</h1>
+    <p>아래 버튼을 클릭하여 각 라이프 스테이지에 관련된 데이터를 조회하세요.</p>
+
+    <div class="container">
+    	<button class="stage-btn" onclick="location.href='/sample-project/info?type=UNI'">대학생 (UNI)</button>
+    	<button class="stage-btn" onclick="location.href='/sample-project/info?type=NEW_JOB'">사회초년생 (NEW_JOB)</button>
+    	<button class="stage-btn" onclick="location.href='/sample-project/info?type=NEW_WED'">신혼부부 (NEW_WED)</button>
+    	<button class="stage-btn" onclick="location.href='/sample-project/info?type=CHILD_BABY'">영유아자녀 (CHILD_BABY)</button>
+    	<button class="stage-btn" onclick="location.href='/sample-project/info?type=CHILD_TEEN'">청소년자녀 (CHILD_TEEN)</button>
+    	<button class="stage-btn" onclick="location.href='/sample-project/info?type=CHILD_UNI'">대학생자녀 (CHILD_UNI)</button>
+    	<button class="stage-btn" onclick="location.href='/sample-project/info?type=GOLLIFE'">중년 (GOLLIFE)</button>
+    	<button class="stage-btn" onclick="location.href='/sample-project/info?type=SECLIFE'">액티브시니어 (SECLIFE)</button>
+    	<button class="stage-btn" onclick="location.href='/sample-project/info?type=RETIR'">은퇴 (RETIR)</button>
+	</div>
+
+</body>
 </html>

@@ -1,6 +1,7 @@
 package dev.sample.servlet;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,8 @@ public class LifeStagesServlet extends HttpServlet {
 
         List<Map<String, Object>> lifeStages = getFromCacheOrDb();
         req.setAttribute("lifeStages", lifeStages);
+      
+        resp.setContentType("text/html");
 
         RequestDispatcher rd = req.getRequestDispatcher("/WEB-INF/views/life-stages/list.html");
         rd.forward(req, resp);
