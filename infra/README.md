@@ -3,6 +3,7 @@
 이 가이드는 MySQL Group Replication 클러스터를 구성하고, 대용량 카드 거래 데이터를 안전하게 적재하는 절차를 안내합니다. **모든 명령어는 `infra` 폴더 내 터미널에서 실행하는 것을 기준으로 합니다.**
 
 ## 사전 파일 세팅
+
 ```text
 infra/
 ├── data/
@@ -14,6 +15,7 @@ infra/
 ```
 
 도커 띄우기
+
 ```bash
 docker compose down -v
 docker compose up -d --build
@@ -29,8 +31,10 @@ docker compose up -d --build
 # 클러스터 구성 및 노드(node2, node3) 등록
 docker exec -it fisa-mysql-node1 mysqlsh --js --file /home/scripts/register_cluster.js --uri root:1234@localhost:3306 --verbose=1
 ```
+
 실행 중 비밀번호 요청이 뜨면 `1234`를 입력하세요. 작업 완료 후 `cluster.status()` 결과가 출력됩니다.
 이후 라우터 컨테이너를 실행합니다.
+
 ```bash
 docker compose --profile router up -d
 ```
@@ -52,16 +56,12 @@ mysql --local-infile=1 -u root -p1234 < /home/scripts/setup_test.sql
 docker exec fisa-mysql-node1 bash -c "mysql --local-infile=1 -u root -p1234 < /home/scripts/setup_test.sql"
 ```
 
-
 적재 후, **모든 노드(Node1, Node2, Node3)** 각각에 접속하여 데이터 건수가 일치하는지 확인합니다.
 
-```sql
--- 각 노드에서 실행
-docker exec -it fisa-mysql-node1 /bin/bash
-docker exec -it fisa-mysql-node2 /bin/bash
-docker exec -it fisa-mysql-node3 /bin/bash
-
-mysql -u root -p1234 -e "SELECT COUNT(*) FROM card_db.CARD_TRANSACTION;"
+```bash
+docker exec -it fisa-mysql-node1 bash -c "mysql -u root -p1234 -e \"SELECT COUNT(*) FROM card_db.CARD_TRANSACTION;\""
+docker exec -it fisa-mysql-node2 bash -c "mysql -u root -p1234 -e \"SELECT COUNT(*) FROM card_db.CARD_TRANSACTION;\""
+docker exec -it fisa-mysql-node3 bash -c "mysql -u root -p1234 -e \"SELECT COUNT(*) FROM card_db.CARD_TRANSACTION;\""
 ```
 
 </br>
@@ -70,12 +70,8 @@ mysql -u root -p1234 -e "SELECT COUNT(*) FROM card_db.CARD_TRANSACTION;"
 
 테스트 결과가 정상이라면 원본 데이터를 적재합니다.
 
-
 ```bash
-docker exec -it fisa-mysql-node1 /bin/bash
-
-mysql --local-infile=1 -u root -p1234 < /home/scripts/setup.sql
-
+docker exec -it fisa-mysql-node1 bash -c "mysql --local-infile=1 -u root -p1234 < /home/scripts/setup.sql"
 ```
 
 </br>
