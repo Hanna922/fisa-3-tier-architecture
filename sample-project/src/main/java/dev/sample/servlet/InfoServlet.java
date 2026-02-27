@@ -96,7 +96,7 @@ public class InfoServlet extends HttpServlet {
 
         if (isResultValid(result)) {
             for (Map<String, Object> row : result) {
-                String formattedCnt = String.format("%,d", row.get("CNT"));
+                String formattedCnt = String.format("%,d", convertToLong(row.get("CNT")));
                 String tier = convertToTier(row.get("MBR_RK"));
                 out.println("<tr><td>" + tier + "</td><td>" + formattedCnt + " 명</td>");
                 out.println("<td class='highlight-blue'>" + row.get("RATIO_PCT") + " %</td></tr>");
