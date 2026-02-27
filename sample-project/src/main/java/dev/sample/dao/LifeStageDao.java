@@ -59,9 +59,56 @@ public class LifeStageDao {
 		}
 
 		return result;
-	}
+  }
+	
+	/**
+	 * admin 용 insert
+	 * @param basYh
+	 * @param seq
+	 * @param lifeStage
+	 * @param totUseAm
+	 * @return
+	 */
+  public int insert(String basYh, String seq, String lifeStage, long totUseAm) {
 
-	public List<Map<String, Object>> findMembershipTierByLifeStage(String lifeStage) {
+    String sql = loadSql("insert.sql");
+
+    try (Connection conn = dataSource.getConnection();
+         PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+        int i = 1;
+
+        pstmt.setString(i++, basYh);
+        pstmt.setString(i++, seq);
+        pstmt.setString(i++, lifeStage);
+        pstmt.setLong(i++, totUseAm);
+
+        return pstmt.executeUpdate();
+
+    } catch (Exception e) {
+        throw new RuntimeException("insert 실패", e);
+    }
+  }
+	
+	/**
+	 * Admin 용 delete (기준시점 + 고객번호 기준)
+	 */
+  public int delete(String basYh, String seq) {
+    String sql = loadSql("delete.sql");
+
+    try (Connection conn = dataSource.getConnection();
+         PreparedStatement pstmt = conn.prepareStatement(sql)) {
+      pstmt.setString(1, basYh);
+      pstmt.setString(2, seq);
+
+      return pstmt.executeUpdate();
+
+    } catch (Exception e) {
+      throw new RuntimeException("delete 실패", e);
+    }
+  }
+  
+  public List<Map<String, Object>> findMembershipTierByLifeStage(String lifeStage) {
 	    List<Map<String, Object>> result = new ArrayList<>();
 	    String sql = loadSQL("membershipTier_by_lifestage.sql"); 
 
@@ -86,7 +133,7 @@ public class LifeStageDao {
 	        throw new RuntimeException("멤버 등급 분포 조회 중 오류 발생", e);
 	    }
 	    return result;
-	}
+  }
 
 	public List<Map<String, Object>> findConsumptionTypeByLifeStage(String lifeStage) {
 		List<Map<String, Object>> result = new ArrayList<>();
