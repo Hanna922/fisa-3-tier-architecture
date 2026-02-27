@@ -5,6 +5,10 @@
             <Pattern>%d{HH:mm} %highlight([%-5level]) [%thread] %cyan([%logger{36}]) - %msg%n</Pattern>
         </layout>
     </appender>
+    <!-- dev.sample 패키지만 DEBUG로 출력, 나머지는 INFO 유지 -->
+    <logger name="dev.sample" level="DEBUG" additivity="false">
+        <appender-ref ref="STDOUT" />
+    </logger>
     <root level="INFO">
         <appender-ref ref="STDOUT" />
     </root>
