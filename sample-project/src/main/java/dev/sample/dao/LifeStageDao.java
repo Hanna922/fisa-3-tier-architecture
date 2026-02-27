@@ -195,15 +195,16 @@ public class LifeStageDao {
     }
 
     private String loadSQL(String filename) {
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream("sql/" + filename);
-                BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-            if (is == null) {
-                throw new IllegalArgumentException(filename + " SQL 파일을 찾을 수 없습니다.");
-            }
-            return reader.lines().collect(Collectors.joining("\n"));
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
+		InputStream is = getClass().getClassLoader().getResourceAsStream("sql/" + filename);
+		
+        if (is == null) {
+			throw new RuntimeException("SQL 파일을 찾을 수 없습니다: sql/" + filename);
+		}
+		
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+			return reader.lines().collect(Collectors.joining("\n"));
+		} catch (Exception e) {
+			throw new RuntimeException("SQL 파일 로드 실패: " + filename, e);
+		}
+	}
 }
