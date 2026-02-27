@@ -9,8 +9,7 @@
 }
 
 body {
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-		sans-serif;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 	background: #f5f7fb;
 	margin: 0;
 	padding: 40px;
@@ -18,9 +17,42 @@ body {
 	justify-content: center;
 }
 
-.container {
+.wrapper {
 	width: 100%;
 	max-width: 500px;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.top-bar {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.top-bar button {
+	padding: 9px 18px;
+	font-size: 13px;
+	font-weight: 600;
+	color: #3c4043;
+	background-color: #ffffff;
+	border: 1px solid #dadce0;
+	border-radius: 12px;
+	cursor: pointer;
+	transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.top-bar button:hover {
+	background-color: #e8f0fe;
+	border-color: #1a73e8;
+	color: #1967d2;
+	transform: translateY(-2px);
+	box-shadow: 0 4px 12px rgba(26, 115, 232, 0.15);
+}
+
+.container {
+	width: 100%;
 	background: white;
 	padding: 35px;
 	border-radius: 12px;
@@ -29,17 +61,53 @@ body {
 
 h1 {
 	text-align: center;
-	margin-bottom: 10px;
+	margin-bottom: 24px;
 	color: #222;
 }
 
-h2 {
-	text-align: center;
-	margin-top: 0;
-	font-size: 18px;
-	color: #666;
-	border-bottom: 1px solid #eee;
-	padding-bottom: 10px;
+/* 탭 */
+.tabs {
+	display: flex;
+	border-bottom: 2px solid #eee;
+	margin-bottom: 28px;
+}
+
+.tab-btn {
+	flex: 1;
+	padding: 12px;
+	font-size: 15px;
+	font-weight: 600;
+	border: none;
+	background: none;
+	cursor: pointer;
+	color: #999;
+	border-bottom: 3px solid transparent;
+	margin-bottom: -2px;
+	transition: color 0.2s, border-color 0.2s;
+}
+
+.tab-btn.active {
+	color: #4c7fff;
+	border-bottom-color: #4c7fff;
+}
+
+.tab-btn:hover:not(.active) {
+	color: #555;
+}
+
+/* 폼 패널 */
+.tab-panel {
+	display: none;
+	animation: fadeIn 0.2s ease;
+}
+
+.tab-panel.active {
+	display: block;
+}
+
+@keyframes fadeIn {
+	from { opacity: 0; transform: translateY(6px); }
+	to   { opacity: 1; transform: translateY(0); }
 }
 
 label {
@@ -65,7 +133,7 @@ input:focus, select:focus {
 	border-color: #4c7fff;
 }
 
-button {
+.submit-btn {
 	width: 100%;
 	margin-top: 25px;
 	padding: 12px;
@@ -73,25 +141,28 @@ button {
 	font-weight: 600;
 	border: none;
 	border-radius: 6px;
-	background: #4c7fff;
 	color: white;
 	cursor: pointer;
 	transition: background 0.2s;
 }
 
-button:hover {
+.submit-btn.insert {
+	background: #4c7fff;
+}
+
+.submit-btn.insert:hover {
 	background: #3a63d8;
 }
 
-button.delete {
+.submit-btn.delete {
 	background: #e74c3c;
 }
 
-button.delete:hover {
+.submit-btn.delete:hover {
 	background: #c0392b;
 }
 
-#result {
+.result-box {
 	margin-top: 20px;
 	padding: 12px;
 	border-radius: 6px;
@@ -118,15 +189,32 @@ small {
 </style>
 </head>
 <body>
-	<div class="container">
-		<h1>Admin Page</h1>
-		<h2>Insert card transaction data</h2>
+<div class="wrapper">
+<div class="top-bar">
+	<button onclick="location.href='/sample-project/life-stages'">홈</button>
+	<button onclick="location.href='/sample-project/logout'">로그아웃</button>
+</div>
+<div class="container">
+	<h1>Admin Page</h1>
 
+	<div class="tabs">
+		<button class="tab-btn active" onclick="switchTab('insert')">Insert</button>
+		<button class="tab-btn" onclick="switchTab('delete')">Delete</button>
+	</div>
+
+	<!-- Insert 패널 -->
+	<div id="panel-insert" class="tab-panel active">
 		<form id="insertForm">
-			<input type="hidden" name="action" value="insert" /> <label>기준 시점
-			</label> <input type="text" name="basYh" placeholder="2026Q1" required /> <label>고객 번호
-			</label> <input type="text" name="seq" placeholder="123" required /> <label>라이프
-				스테이지</label> <select name="lifeStage">
+			<input type="hidden" name="action" value="insert" />
+
+			<label>기준 시점</label>
+			<input type="text" name="basYh" placeholder="2026Q1" required />
+
+			<label>고객 번호</label>
+			<input type="text" name="seq" placeholder="123" required />
+
+			<label>라이프 스테이지</label>
+			<select name="lifeStage">
 				<option value="NEW_JOB">NEW_JOB</option>
 				<option value="CHILD_BABY">CHILD_BABY</option>
 				<option value="CHILD_TEEN">CHILD_TEEN</option>
@@ -136,42 +224,75 @@ small {
 				<option value="SECLIFE">SECLIFE</option>
 				<option value="TEEN">TEEN</option>
 				<option value="UNI">UNI</option>
-			</select> <label>총 이용금액</label> <input type="number" name="totUseAm"
-				placeholder="0" />
+			</select>
 
-			<button type="submit">등록</button>
+			<label>총 이용금액</label>
+			<input type="number" name="totUseAm" placeholder="0" />
+
+			<button type="submit" class="submit-btn insert">등록</button>
 		</form>
-
-		<div id="result"></div>
-
-		<script>
-	    document.getElementById('insertForm').addEventListener('submit', async function (e) {
-	      e.preventDefault();
-	
-	      const formData = new FormData(this);
-	      const params = new URLSearchParams(formData);
-	
-	      const res = await fetch('/sample-project/admin/card-transaction', {
-	        method: 'POST',
-	        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-	        body: params.toString()
-	      });
-	
-	      const json = await res.json();
-	      const resultDiv = document.getElementById('result');
-	      resultDiv.style.display = 'block';
-	
-	      if (json.result === 'ok') {
-	        resultDiv.className = 'ok';
-	        resultDiv.textContent = '등록 완료! (rows: ' + json.rows + ')';
-	        this.reset();
-	      } else {
-	        resultDiv.className = 'err';
-	        resultDiv.textContent = '오류: ' + json.message;
-	      }
-	    });
-	  </script>
+		<div id="insert-result" class="result-box"></div>
 	</div>
+
+	<!-- Delete 패널 -->
+	<div id="panel-delete" class="tab-panel">
+		<form id="deleteForm">
+			<input type="hidden" name="action" value="delete" />
+
+			<label>기준 시점 <small>예) 202401</small></label>
+			<input type="text" name="basYh" placeholder="202401" required />
+
+			<label>고객 번호</label>
+			<input type="text" name="seq" placeholder="123" required />
+
+			<button type="submit" class="submit-btn delete">삭제</button>
+		</form>
+		<div id="delete-result" class="result-box"></div>
+	</div>
+</div>
+</div>
+
+<script>
+function switchTab(tab) {
+	document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+		btn.classList.toggle('active', (i === 0 && tab === 'insert') || (i === 1 && tab === 'delete'));
+	});
+	document.getElementById('panel-insert').classList.toggle('active', tab === 'insert');
+	document.getElementById('panel-delete').classList.toggle('active', tab === 'delete');
+}
+
+async function postForm(formEl, resultId) {
+	const params = new URLSearchParams(new FormData(formEl));
+	const res = await fetch('/sample-project/admin/card-transaction', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+		body: params.toString()
+	});
+	const json = await res.json();
+	const resultDiv = document.getElementById(resultId);
+	resultDiv.style.display = 'block';
+
+	if (json.result === 'ok') {
+		resultDiv.className = 'result-box ok';
+		resultDiv.textContent = resultId === 'insert-result'
+			? '등록 완료! (rows: ' + json.rows + ')'
+			: (json.rows > 0 ? '삭제 완료!' : '해당 고객번호가 존재하지 않습니다.');
+		formEl.reset();
+	} else {
+		resultDiv.className = 'result-box err';
+		resultDiv.textContent = '오류: ' + json.message;
+	}
+}
+
+document.getElementById('insertForm').addEventListener('submit', function(e) {
+	e.preventDefault();
+	postForm(this, 'insert-result');
+});
+
+document.getElementById('deleteForm').addEventListener('submit', function(e) {
+	e.preventDefault();
+	postForm(this, 'delete-result');
+});
+</script>
 </body>
 </html>
-
