@@ -1,9 +1,5 @@
 package dev.sample.dao;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -12,9 +8,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
-import javax.servlet.ServletContext;
 import javax.sql.DataSource;
 
 public class LifeStageDao {
@@ -64,14 +58,6 @@ public class LifeStageDao {
         }
 
         return result;
-    }
-    
-    private String readSQLFile(ServletContext ctx, String filename) throws IOException {
-    	String path = "/src/main/resources/" + filename + ".sql";
-    	InputStream is = ctx.getResourceAsStream(path); 
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
-            return br.lines().collect(Collectors.joining("\n"));
-        } 
     }
 
 	public List<Map<String, Object>> findMembershipTierByLifestageMock(String lifeStage) {
