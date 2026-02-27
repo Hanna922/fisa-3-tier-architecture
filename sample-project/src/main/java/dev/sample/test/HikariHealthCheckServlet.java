@@ -26,7 +26,7 @@ public class HikariHealthCheckServlet extends HttpServlet {
         PrintWriter out = resp.getWriter();
 
         ServletContext ctx = getServletContext();
-        Object obj = ctx.getAttribute("DATA_SOURCE");
+        Object obj = ctx.getAttribute("SOURCE_DS");
         if (obj == null) {
             resp.setStatus(500);
             out.println("FAIL: DATA_SOURCE not found in ServletContext");

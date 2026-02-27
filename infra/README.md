@@ -21,7 +21,7 @@ docker compose up -d --build
 
 </br>
 
-## 1단계: 클러스터(Cluster) 등록하기
+## 1단계: 클러스터 등록, 라우터 구성
 
 먼저 `mysqlsh` 스크립트를 실행하여 3개의 노드를 하나의 클러스터로 묶어줍니다.
 
@@ -30,6 +30,10 @@ docker compose up -d --build
 docker exec -it fisa-mysql-node1 mysqlsh --js --file /home/scripts/register_cluster.js --uri root:1234@localhost:3306 --verbose=1
 ```
 실행 중 비밀번호 요청이 뜨면 `1234`를 입력하세요. 작업 완료 후 `cluster.status()` 결과가 출력됩니다.
+이후 라우터 컨테이너를 실행합니다.
+```bash
+docker compose --profile router up -d
+```
 
 </br>
 
@@ -44,15 +48,18 @@ docker exec -it fisa-mysql-node1 /bin/bash
 # 2. 내부 경로에 있는 파일로 적재
 mysql --local-infile=1 -u root -p1234 < /home/scripts/setup_test.sql
 
+# OR
+docker exec fisa-mysql-node1 bash -c "mysql --local-infile=1 -u root -p1234 < /home/scripts/setup_test.sql"
 ```
 
 
-적재 후, **Node1**과 **Node2** 각각에 접속하여 데이터 건수가 일치하는지 확인합니다.
+적재 후, **모든 노드(Node1, Node2, Node3)** 각각에 접속하여 데이터 건수가 일치하는지 확인합니다.
 
 ```sql
--- 각 노드(node1, node2)에서 실행
+-- 각 노드에서 실행
 docker exec -it fisa-mysql-node1 /bin/bash
 docker exec -it fisa-mysql-node2 /bin/bash
+docker exec -it fisa-mysql-node3 /bin/bash
 
 mysql -u root -p1234 -e "SELECT COUNT(*) FROM card_db.CARD_TRANSACTION;"
 ```

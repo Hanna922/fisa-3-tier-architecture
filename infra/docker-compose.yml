@@ -101,7 +101,7 @@ services:
 
   # MySQL Router (R/W Split Proxy)
   mysql-router:
-    image: mysql/mysql-router:8.4
+    image: percona/percona-mysql-router:8.4.0
     container_name: fisa-mysql-router
     ports:
       - "6446:6446"  # R/W → Primary
