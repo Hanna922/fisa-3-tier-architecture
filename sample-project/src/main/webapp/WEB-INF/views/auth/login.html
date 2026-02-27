@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>Login</title>
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f5f7fb;
+    margin: 0;
+    padding: 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+.container {
+    width: 100%;
+    max-width: 400px;
+    background: white;
+    padding: 35px;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 28px;
+    color: #222;
+    font-size: 26px;
+}
+
+label {
+    display: block;
+    margin-top: 15px;
+    font-weight: 600;
+    font-size: 14px;
+    color: #444;
+}
+
+input {
+    width: 100%;
+    padding: 10px;
+    margin-top: 5px;
+    border-radius: 6px;
+    border: 1px solid #dcdfe6;
+    font-size: 14px;
+    transition: border 0.2s;
+}
+
+input:focus {
+    outline: none;
+    border-color: #4c7fff;
+}
+
+button {
+    width: 100%;
+    margin-top: 25px;
+    padding: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    background: #4c7fff;
+    color: white;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+button:hover {
+    background: #3a63d8;
+}
+
+.error-msg {
+    margin-top: 16px;
+    padding: 12px;
+    border-radius: 6px;
+    background: #fdecea;
+    color: #c0392b;
+    border: 1px solid #f5c6cb;
+    font-size: 14px;
+    text-align: center;
+}
+</style>
+</head>
+<body>
+    <div class="container">
+        <h1>로그인</h1>
+
+        <form method="post" action="login">
+            <label>아이디</label>
+            <input name="user_id" required />
+
+            <label>비밀번호</label>
+            <input name="password" type="password" required />
+
+            <button type="submit">로그인</button>
+        </form>
+    </div>
+</body>
+</html>
