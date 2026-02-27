@@ -2,50 +2,118 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Life Stages</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Life Stages 분석 리포트</title>
     <style>
-        body { font-family: 'Malgun Gothic', sans-serif; padding: 20px; line-height: 1.6; }
-        h1 { color: #333; }
-        .container { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+        /* 분석 리포트 페이지와 동일한 색상 및 폰트 시스템 */
+        body { 
+            font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; 
+            background-color: #f0f2f5; 
+            color: #1c1e21; 
+            margin: 0; 
+            padding: 60px 20px; 
+            display: flex;
+            justify-content: center;
+        }
+        .container { 
+            max-width: 800px; 
+            width: 100%;
+            background: white; 
+            padding: 50px; 
+            border-radius: 20px; 
+            box-shadow: 0 10px 40px rgba(0,0,0,0.06); 
+            text-align: center;
+        }
+        h1 { 
+            color: #1a73e8; 
+            font-size: 32px; 
+            margin-bottom: 15px; 
+            font-weight: 700;
+        }
+        .description {
+            color: #5f6368;
+            font-size: 16px;
+            margin-bottom: 45px;
+        }
         
-        /* 버튼 스타일 */
-        .stage-btn {
-            padding: 12px 24px;
-            font-size: 14px;
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.2s;
+        /* 버튼 그리드 레이아웃 */
+        .btn-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); 
+            gap: 15px; 
         }
-        .stage-btn:hover { background-color: #e2e6ea; border-color: #adb5bd; }
-        .stage-btn:active { background-color: #dae0e5; }
 
-        .info-box {
-            padding: 15px;
-            background-color: #e9ecef;
-            border-radius: 8px;
-            margin-top: 30px;
+        /* 버튼 스타일 리팩토링 */
+        .stage-btn {
+            padding: 20px;
+            font-size: 15px;
+            font-weight: 600;
+            color: #3c4043;
+            background-color: #ffffff;
+            border: 1px solid #dadce0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
-        .port-highlight { color: #007bff; font-weight: bold; font-size: 1.2em; }
+
+        /* 호버 효과: 분석 리포트와 동일한 Blue 계열 포인트 */
+        .stage-btn:hover { 
+            background-color: #e8f0fe; 
+            border-color: #1a73e8; 
+            color: #1967d2;
+            transform: translateY(-3px);
+            box-shadow: 0 4px 12px rgba(26, 115, 232, 0.15);
+        }
+
+        /* 영문 코드 스타일링 */
+        .stage-btn span {
+            font-size: 12px;
+            color: #80868b;
+            font-weight: 400;
+        }
+
+        .stage-btn:hover span {
+            color: #1967d2;
+        }
+
+        /* 하단 푸터 느낌의 안내 */
+        .footer-info {
+            margin-top: 50px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 10px;
+            font-size: 14px;
+            color: #70757a;
+        }
     </style>
 </head>
 <body>
 
-    <h1>라이프 스테이지 선택 페이지</h1>
-    <p>아래 버튼을 클릭하여 각 라이프 스테이지에 관련된 데이터를 조회하세요.</p>
-
     <div class="container">
-    	<button class="stage-btn" onclick="location.href='/sample-project/info?type=UNI'">대학생 (UNI)</button>
-    	<button class="stage-btn" onclick="location.href='/sample-project/info?type=NEW_JOB'">사회초년생 (NEW_JOB)</button>
-    	<button class="stage-btn" onclick="location.href='/sample-project/info?type=NEW_WED'">신혼부부 (NEW_WED)</button>
-    	<button class="stage-btn" onclick="location.href='/sample-project/info?type=CHILD_BABY'">영유아자녀 (CHILD_BABY)</button>
-    	<button class="stage-btn" onclick="location.href='/sample-project/info?type=CHILD_TEEN'">청소년자녀 (CHILD_TEEN)</button>
-    	<button class="stage-btn" onclick="location.href='/sample-project/info?type=CHILD_UNI'">대학생자녀 (CHILD_UNI)</button>
-    	<button class="stage-btn" onclick="location.href='/sample-project/info?type=GOLLIFE'">중년 (GOLLIFE)</button>
-    	<button class="stage-btn" onclick="location.href='/sample-project/info?type=SECLIFE'">액티브시니어 (SECLIFE)</button>
-    	<button class="stage-btn" onclick="location.href='/sample-project/info?type=RETIR'">은퇴 (RETIR)</button>
-	</div>
+        <h1>📊 금융 라이프 분석 시스템</h1>
+        <p class="description">조회하고자 하는 <strong>라이프 스테이지</strong>를 선택하면<br>정밀 분석 리포트를 확인하실 수 있습니다.</p>
+
+        <div class="btn-grid">
+            <button class="stage-btn" onclick="location.href='/sample-project/info?type=UNI'">대학생 <span>(UNI)</span></button>
+            <button class="stage-btn" onclick="location.href='/sample-project/info?type=NEW_JOB'">사회초년생 <span>(NEW_JOB)</span></button>
+            <button class="stage-btn" onclick="location.href='/sample-project/info?type=NEW_WED'">신혼부부 <span>(NEW_WED)</span></button>
+            <button class="stage-btn" onclick="location.href='/sample-project/info?type=CHILD_BABY'">영유아자녀 <span>(CHILD_BABY)</span></button>
+            <button class="stage-btn" onclick="location.href='/sample-project/info?type=CHILD_TEEN'">청소년자녀 <span>(CHILD_TEEN)</span></button>
+            <button class="stage-btn" onclick="location.href='/sample-project/info?type=CHILD_UNI'">대학생자녀 <span>(CHILD_UNI)</span></button>
+            <button class="stage-btn" onclick="location.href='/sample-project/info?type=GOLLIFE'">중년 <span>(GOLLIFE)</span></button>
+            <button class="stage-btn" onclick="location.href='/sample-project/info?type=SECLIFE'">액티브시니어 <span>(SECLIFE)</span></button>
+            <button class="stage-btn" onclick="location.href='/sample-project/info?type=RETIR'">은퇴 <span>(RETIR)</span></button>
+        </div>
+
+        <div class="footer-info">
+            본 데이터는 Woori FISA 금융 데이터 프로젝트의 일환으로 제공되는 통계 리포트입니다.
+        </div>
+    </div>
 
 </body>
 </html>
