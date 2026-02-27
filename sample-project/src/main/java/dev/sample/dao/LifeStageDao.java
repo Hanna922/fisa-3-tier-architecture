@@ -1,5 +1,8 @@
 package dev.sample.dao;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -8,6 +11,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import javax.sql.DataSource;
 
@@ -55,6 +59,64 @@ public class LifeStageDao {
 
 		return result;
 	}
+
+	private String loadSql(String fileName) {
+    InputStream is = getClass().getClassLoader().getResourceAsStream("sql/" + fileName);
+    if (is == null) throw new RuntimeException("SQL 파일 없음: sql/" + fileName);
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
+        return reader.lines().collect(Collectors.joining("\n"));
+    } catch (Exception e) {
+        throw new RuntimeException("SQL 파일 로드 실패: " + fileName, e);
+    }
+	}
+	
+	
+	/**
+	 * admin 용 insert
+	 * @param basYh
+	 * @param seq
+	 * @param lifeStage
+	 * @param totUseAm
+	 * @return
+	 */
+  public int insert(String basYh, String seq, String lifeStage, long totUseAm) {
+
+    String sql = loadSql("insert.sql");
+
+    try (Connection conn = dataSource.getConnection();
+         PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+        int i = 1;
+
+        pstmt.setString(i++, basYh);
+        pstmt.setString(i++, seq);
+        pstmt.setString(i++, lifeStage);
+        pstmt.setLong(i++, totUseAm);
+
+        return pstmt.executeUpdate();
+
+    } catch (Exception e) {
+        throw new RuntimeException("insert 실패", e);
+    }
+  }
+	
+	/**
+	 * Admin 용 delete (기준시점 + 고객번호 기준)
+	 */
+  public int delete(String basYh, String seq) {
+    String sql = loadSql("delete.sql");
+
+    try (Connection conn = dataSource.getConnection();
+         PreparedStatement pstmt = conn.prepareStatement(sql)) {
+      pstmt.setString(1, basYh);
+      pstmt.setString(2, seq);
+
+      return pstmt.executeUpdate();
+
+    } catch (Exception e) {
+      throw new RuntimeException("delete 실패", e);
+    }
+  }
 
 	public List<Map<String, Object>> findMembershipTierByLifeStageMock(String lifeStage) {
 		List<Map<String, Object>> mockResults = new ArrayList<>();
