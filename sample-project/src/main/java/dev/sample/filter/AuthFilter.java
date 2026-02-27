@@ -21,6 +21,11 @@ public class AuthFilter implements Filter {
 
         HttpServletRequest req = (HttpServletRequest) request;
         HttpServletResponse resp = (HttpServletResponse) response;
+        
+        resp.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        resp.setHeader("Pragma", "no-cache");
+        resp.setDateHeader("Expires", 0);
+
 
         HttpSession session = req.getSession(false);
         boolean loggedIn = session != null && session.getAttribute("loginUser") != null;
