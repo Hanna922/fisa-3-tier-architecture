@@ -6,6 +6,8 @@ import java.text.DecimalFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -21,6 +23,7 @@ import dev.sample.dao.LifeStageDao;
 public class InfoServlet extends HttpServlet {
 
     private static final DecimalFormat df = new DecimalFormat("#,###");
+    private static final Executor DB_QUERY_POOL = Executors.newFixedThreadPool(10);
     private LifeStageDao dao;
 
     @Override
@@ -36,10 +39,10 @@ public class InfoServlet extends HttpServlet {
         String lifeStageKor = convertToKor(lifeStageCode);
         
         // 1. 4개의 쿼리를 비동기로 동시 실행 시작 (병렬 처리)
-        CompletableFuture<List<Map<String, Object>>> creditFuture = CompletableFuture.supplyAsync(() -> dao.findCreditOfCheckByLifeStage(lifeStageCode));
-        CompletableFuture<List<Map<String, Object>>> tierFuture = CompletableFuture.supplyAsync(() -> dao.findMembershipTierByLifeStage(lifeStageCode));
-        CompletableFuture<List<Map<String, Object>>> consumptionFuture = CompletableFuture.supplyAsync(() -> dao.findConsumptionTypeByLifeStage(lifeStageCode));
-        CompletableFuture<List<Map<String, Object>>> top5Future = CompletableFuture.supplyAsync(() -> dao.findTop5ByLifeStage(lifeStageCode));
+        CompletableFuture<List<Map<String, Object>>> creditFuture = CompletableFuture.supplyAsync(() -> dao.findCreditOfCheckByLifeStage(lifeStageCode), DB_QUERY_POOL);
+        CompletableFuture<List<Map<String, Object>>> tierFuture = CompletableFuture.supplyAsync(() -> dao.findMembershipTierByLifeStage(lifeStageCode), DB_QUERY_POOL);
+        CompletableFuture<List<Map<String, Object>>> consumptionFuture = CompletableFuture.supplyAsync(() -> dao.findConsumptionTypeByLifeStage(lifeStageCode), DB_QUERY_POOL);
+        CompletableFuture<List<Map<String, Object>>> top5Future = CompletableFuture.supplyAsync(() -> dao.findTop5ByLifeStage(lifeStageCode), DB_QUERY_POOL);
 
         // 2. 모든 작업이 끝날 때까지 기다림 (Join)
         // 화면 렌더링 순서대로 join()을 호출하여 결과값을 가져옵니다.
