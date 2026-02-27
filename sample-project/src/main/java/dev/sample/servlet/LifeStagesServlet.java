@@ -32,7 +32,8 @@ public class LifeStagesServlet extends HttpServlet {
     private static final int TTL_SECONDS = 3600;
 
     private final Gson gson = new Gson();
-    private final Type listType = new TypeToken<List<Map<String, Object>>>() {}.getType();
+    private final Type listType = new TypeToken<List<Map<String, Object>>>() {
+    }.getType();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -40,6 +41,8 @@ public class LifeStagesServlet extends HttpServlet {
 
         List<Map<String, Object>> lifeStages = getFromCacheOrDb();
         req.setAttribute("lifeStages", lifeStages);
+
+        resp.setContentType("text/html");
 
         RequestDispatcher rd = req.getRequestDispatcher("/WEB-INF/views/life-stages/list.html");
         rd.forward(req, resp);
