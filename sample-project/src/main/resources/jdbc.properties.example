@@ -1,9 +1,13 @@
-# Source DB (쓰기/읽기)
-source.url=jdbc:mysql://localhost:3307/card_db?serverTimezone=Asia/Seoul
+# MySQL Router R/W 포트 (→ Primary)
+source.url=jdbc:mysql://localhost:6446/card_db?serverTimezone=Asia/Seoul
 source.username=
 source.password=
 
-# Replica DB (읽기 전용)
-replica.url=jdbc:mysql://localhost:3308/card_db?serverTimezone=Asia/Seoul
+# MySQL Router R/O 포트 (→ Secondary, round-robin)
+replica.url=jdbc:mysql://localhost:6447/card_db?serverTimezone=Asia/Seoul
 replica.username=
 replica.password=
+
+# Redis
+redis.host=localhost
+redis.port=6379
