@@ -36,10 +36,10 @@ public class InfoServlet extends HttpServlet {
         String lifeStageKor = convertToKor(lifeStageCode);
         
         // 1. 4개의 쿼리를 비동기로 동시 실행 시작 (병렬 처리)
-        CompletableFuture<List<Map<String, Object>>> creditFuture = CompletableFuture.supplyAsync(() -> dao.findCreditOfCheckByLifeStageMock(lifeStageCode));
-        CompletableFuture<List<Map<String, Object>>> tierFuture = CompletableFuture.supplyAsync(() -> dao.findMembershipTierByLifeStageMock(lifeStageCode));
-        CompletableFuture<List<Map<String, Object>>> consumptionFuture = CompletableFuture.supplyAsync(() -> dao.findConsumptionTypeByLifeStageMock(lifeStageCode));
-        CompletableFuture<List<Map<String, Object>>> top5Future = CompletableFuture.supplyAsync(() -> dao.findTop5ByLifeStageMock(lifeStageCode));
+        CompletableFuture<List<Map<String, Object>>> creditFuture = CompletableFuture.supplyAsync(() -> dao.findCreditOfCheckByLifeStage(lifeStageCode));
+        CompletableFuture<List<Map<String, Object>>> tierFuture = CompletableFuture.supplyAsync(() -> dao.findMembershipTierByLifeStage(lifeStageCode));
+        CompletableFuture<List<Map<String, Object>>> consumptionFuture = CompletableFuture.supplyAsync(() -> dao.findConsumptionTypeByLifeStage(lifeStageCode));
+        CompletableFuture<List<Map<String, Object>>> top5Future = CompletableFuture.supplyAsync(() -> dao.findTop5ByLifeStage(lifeStageCode));
 
         // 2. 모든 작업이 끝날 때까지 기다림 (Join)
         // 화면 렌더링 순서대로 join()을 호출하여 결과값을 가져옵니다.

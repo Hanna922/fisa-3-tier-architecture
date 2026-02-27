@@ -1,5 +1,9 @@
 package dev.sample.dao;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -8,6 +12,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import javax.sql.DataSource;
 
@@ -56,94 +61,112 @@ public class LifeStageDao {
 		return result;
 	}
 
-	public List<Map<String, Object>> findMembershipTierByLifeStageMock(String lifeStage) {
-		List<Map<String, Object>> mockResults = new ArrayList<>();
+	public List<Map<String, Object>> findMembershipTierByLifeStage(String lifeStage) {
+	    List<Map<String, Object>> result = new ArrayList<>();
+	    String sql = loadSQL("membershipTier_by_lifestage.sql"); 
 
-		// 데이터 1: MBR_RK 25
-		Map<String, Object> row1 = new LinkedHashMap<>();
-		row1.put("LIFE_STAGE", lifeStage);
-		row1.put("MBR_RK", 000);
-		row1.put("CNT", 000);
-		row1.put("RATIO_PCT", 000.0);
-		mockResults.add(row1);
-
-		// 데이터 2: MBR_RK 24
-		Map<String, Object> row2 = new LinkedHashMap<>();
-		row2.put("LIFE_STAGE", lifeStage);
-		row2.put("MBR_RK", 000);
-		row2.put("CNT", 000);
-		row2.put("RATIO_PCT", 000.0);
-		mockResults.add(row2);
-
-		// 데이터 3: MBR_RK 23
-		Map<String, Object> row3 = new LinkedHashMap<>();
-		row3.put("LIFE_STAGE", lifeStage);
-		row3.put("MBR_RK", 000);
-		row3.put("CNT", 000);
-		row3.put("RATIO_PCT", 000.0);
-		mockResults.add(row3);
-
-		// 데이터 4: MBR_RK 22
-		Map<String, Object> row4 = new LinkedHashMap<>();
-		row4.put("LIFE_STAGE", lifeStage);
-		row4.put("MBR_RK", 000);
-		row4.put("CNT", 000);
-		row4.put("RATIO_PCT", 000.0);
-		mockResults.add(row4);
-
-		// 데이터 5: MBR_RK 21
-		Map<String, Object> row5 = new LinkedHashMap<>();
-		row5.put("LIFE_STAGE", lifeStage);
-		row5.put("MBR_RK", 000);
-		row5.put("CNT", 000);
-		row5.put("RATIO_PCT", 000.0);
-		mockResults.add(row5);
-
-		return mockResults;
+	    try (Connection conn = dataSource.getConnection();
+	         PreparedStatement pstmt = conn.prepareStatement(sql)) {
+	        
+	        // 2. 파라미터 바인딩
+	        pstmt.setString(1, lifeStage);
+	        
+	        try (ResultSet rs = pstmt.executeQuery()) {
+	            while (rs.next()) {
+	                Map<String, Object> row = new LinkedHashMap<>();
+	                // 쿼리 결과 컬럼명과 매칭
+	                row.put("LIFE_STAGE", rs.getString("LIFE_STAGE"));
+	                row.put("MBR_RK", rs.getInt("MBR_RK"));
+	                row.put("CNT", rs.getInt("CNT"));
+	                row.put("RATIO_PCT", rs.getDouble("RATIO_PCT"));
+	                result.add(row);
+	            }
+	        }
+	    } catch (Exception e) {
+	        throw new RuntimeException("멤버 등급 분포 조회 중 오류 발생", e);
+	    }
+	    return result;
 	}
 
-	public List<Map<String, Object>> findConsumptionTypeByLifeStageMock(String lifeStage) {
-		List<Map<String, Object>> mockResults = new ArrayList<>();
+	public List<Map<String, Object>> findConsumptionTypeByLifeStage(String lifeStage) {
+		List<Map<String, Object>> result = new ArrayList<>();
+		String sql = loadSQL("necessaryOrNot_by_lifestage.sql");
 
-		// 제공해주신 쿼리 결과를 한 줄(Row)로 생성
-		Map<String, Object> row = new LinkedHashMap<>();
-		row.put("LIFE_STAGE", lifeStage); // UNI
-		row.put("ESSENTIAL_AMT", 000L); // 필수 소비 금액
-		row.put("OPTIONAL_AMT", 000L); // 선택 소비 금액
+		try (Connection conn = dataSource.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-		mockResults.add(row);
-		return mockResults;
-	}
+			pstmt.setString(1, lifeStage); // 쿼리의 ? 파라미터 바인딩
 
-	public List<Map<String, Object>> findTop5ByLifeStageMock(String lifeStage) {
-		List<Map<String, Object>> mockResults = new ArrayList<>();
-
-		// 순위 데이터 정의 (표 데이터 그대로 입력)
-		Object[][] data = { { "AAA", 000L, 1 }, { "AAA", 000L, 2 }, { "AAA", 000L, 3 }, { "AAA", 000L, 4 },
-				{ "AAA", 000L, 5 } };
-
-		for (Object[] obj : data) {
-			Map<String, Object> row = new LinkedHashMap<>();
-			row.put("LIFE_STAGE", lifeStage);
-			row.put("CATEGORY", obj[0]);
-			row.put("TOTAL_AMT", obj[1]);
-			row.put("RNK", obj[2]);
-			mockResults.add(row);
+			try (ResultSet rs = pstmt.executeQuery()) {
+				while (rs.next()) {
+					Map<String, Object> row = new LinkedHashMap<>();
+					row.put("LIFE_STAGE", lifeStage); // UNI
+					row.put("ESSENTIAL_AMT", rs.getLong("ESSENTIAL_AMT")); // 필수 소비 금액
+					row.put("OPTIONAL_AMT", rs.getLong("OPTIONAL_AMT")); // 선택 소비 금액
+					result.add(row);
+				}
+			}
+		} catch (Exception e) {
+			throw new RuntimeException("쿼리 실행 중 오류 발생", e);
 		}
-
-		return mockResults;
+		return result;
 	}
 
-	public List<Map<String, Object>> findCreditOfCheckByLifeStageMock(String lifeStage) {
-		List<Map<String, Object>> mockResults = new ArrayList<>();
+	public List<Map<String, Object>> findTop5ByLifeStage(String lifeStage) {
+		List<Map<String, Object>> result = new ArrayList<>();
+		String sql = loadSQL("top5_by_lifestage.sql");
 
-		// 쿼리 결과 한 줄(Row)을 Map 형태로 생성
-		Map<String, Object> row = new LinkedHashMap<>();
-		row.put("LIFE_STAGE", lifeStage); // UNI
-		row.put("CRDSL_USE_AM", 000L); // 신용카드 이용 금액
-		row.put("CNF_USE_AM", 000L); // 체크카드 이용 금액
+		try (Connection conn = dataSource.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-		mockResults.add(row);
-		return mockResults;
+			pstmt.setString(1, lifeStage); // 쿼리의 ? 파라미터 바인딩
+
+			try (ResultSet rs = pstmt.executeQuery()) {
+				while (rs.next()) {
+					Map<String, Object> row = new LinkedHashMap<>();
+					row.put("RNK", rs.getInt("RNK"));
+					row.put("CATEGORY", rs.getString("CATEGORY"));
+					row.put("TOTAL_AMT", rs.getLong("TOTAL_AMT"));
+					result.add(row);
+				}
+			}
+		} catch (Exception e) {
+			throw new RuntimeException("쿼리 실행 중 오류 발생", e);
+		}
+		return result;
+	}
+
+	public List<Map<String, Object>> findCreditOfCheckByLifeStage(String lifeStage) {
+		List<Map<String, Object>> result = new ArrayList<>();
+		String sql = loadSQL("creditOrNot_by_lifestage.sql");
+		
+		try (Connection conn = dataSource.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			
+			pstmt.setString(1, lifeStage);
+			
+			try (ResultSet rs = pstmt.executeQuery()) {
+				while (rs.next()) {
+					Map<String, Object> row = new LinkedHashMap<>();
+					row.put("LIFE_STAGE", lifeStage);
+					row.put("CRDSL_USE_AM", rs.getLong("CRDSL_USE_AM"));
+					row.put("CNF_USE_AM", rs.getLong("CNF_USE_AM"));
+					result.add(row);
+				}
+			}
+		} catch (Exception e) {
+			throw new RuntimeException("쿼리 실행 중 오류 발생", e);
+		}
+		return result;
+	}
+
+	private String loadSQL(String filename) {
+		try (InputStream is = getClass().getClassLoader().getResourceAsStream("sql/" + filename);
+				BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+			if (is == null) {
+				throw new IllegalArgumentException(filename + " SQL 파일을 찾을 수 없습니다.");
+			}
+			return reader.lines().collect(Collectors.joining("\n"));
+		} catch (Exception e) {
+			e.printStackTrace();
+			return null;
+		}
 	}
 }
