@@ -1,11 +1,19 @@
 # ============================================================
-# - Nginx     : 로드 밸런서 (→ 로컬 Tomcat)
-# - MySQL Source  : 쓰기 전용 (Master)
-# - MySQL Replica : 읽기 전용 (Slave)
+# - Nginx        : 로드 밸런서 (→ 로컬 Tomcat)
+# - MySQL Node1  : InnoDB Cluster Primary (초기) / 기존 mysql-source
+# - MySQL Node2  : InnoDB Cluster Secondary      / 기존 mysql-replica
+# - MySQL Node3  : InnoDB Cluster Secondary      / 신규
+# - MySQL Router : R/W Proxy (6446: 쓰기, 6447: 읽기)
+#                  setup-cluster.sh 실행 후 기동
+# - Redis        : 캐시
+# ============================================================
+# MySQL Shell은 호스트에서 직접 실행 (mysqlsh 설치 필요)
+# 클러스터 구성: bash setup-cluster.sh
 # ============================================================
 
 services:
-  # Nginx (nginx.conf 작성 후 주석 해제)
+
+  # Nginx
   nginx:
     build:
       context: ./nginx
@@ -17,12 +25,12 @@ services:
       - fisa-network
     restart: unless-stopped
 
-  # MySQL Source
-  mysql-source:
+  # MySQL Node1 
+  mysql-node1:
     build:
-      context: ./mysql-source
+      context: ./mysql-node1
       dockerfile: Dockerfile
-    container_name: fisa-mysql-source
+    container_name: fisa-mysql-node1
     ports:
       - "3307:3306"
     environment:
@@ -31,24 +39,24 @@ services:
       MYSQL_USER: fisa
       MYSQL_PASSWORD: 1234
     volumes:
-      - mysql-source-data:/var/lib/mysql
-      - ./mysql-source/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - mysql-node1-data:/var/lib/mysql
+      - ./data:/var/lib/mysql-files  # 데이터 파일
+      - ./scripts:/home/scripts # 스크립트 파일
     networks:
       - fisa-network
     restart: unless-stopped
     healthcheck:
-      test:
-        ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p1234"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p1234"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # MySQL Replica
-  mysql-replica:
+  # MySQL Node2 
+  mysql-node2:
     build:
-      context: ./mysql-replica
+      context: ./mysql-node2
       dockerfile: Dockerfile
-    container_name: fisa-mysql-replica
+    container_name: fisa-mysql-node2
     ports:
       - "3308:3306"
     environment:
@@ -57,13 +65,65 @@ services:
       MYSQL_USER: fisa
       MYSQL_PASSWORD: 1234
     volumes:
-      - mysql-replica-data:/var/lib/mysql
+      - mysql-node2-data:/var/lib/mysql
+    networks:
+      - fisa-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p1234"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MySQL Node3 
+  mysql-node3:
+    build:
+      context: ./mysql-node3
+      dockerfile: Dockerfile
+    container_name: fisa-mysql-node3
+    ports:
+      - "3309:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: 1234
+      MYSQL_DATABASE: card_db
+      MYSQL_USER: fisa
+      MYSQL_PASSWORD: 1234
+    volumes:
+      - mysql-node3-data:/var/lib/mysql
+    networks:
+      - fisa-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p1234"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MySQL Router (R/W Split Proxy)
+  mysql-router:
+    image: mysql/mysql-router:8.4
+    container_name: fisa-mysql-router
+    ports:
+      - "6446:6446"  # R/W → Primary
+      - "6447:6447"  # R/O → Secondary (round-robin)
+    environment:
+      MYSQL_HOST: mysql-node1
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: 1234
+      MYSQL_INNODB_CLUSTER_MEMBERS: 3
     networks:
       - fisa-network
     depends_on:
-      mysql-source:
+      mysql-node1:
+        condition: service_healthy
+      mysql-node2:
+        condition: service_healthy
+      mysql-node3:
         condition: service_healthy
     restart: unless-stopped
+    profiles:
+      - router
 
   # Redis
   redis:
@@ -75,10 +135,11 @@ services:
       - fisa-network
     restart: unless-stopped
 
-# Named Volumes - MySQL 데이터 영속성
+# Named Volumes
 volumes:
-  mysql-source-data:
-  mysql-replica-data:
+  mysql-node1-data:  
+  mysql-node2-data:  
+  mysql-node3-data:   
 
 # Network
 networks:
