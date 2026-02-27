@@ -49,8 +49,10 @@ public class LifeStagesServlet extends HttpServlet {
     }
 
     private List<Map<String, Object>> getFromCacheOrDb() {
+        DataSource replicaDs = ApplicationContextListener.getReplicaDataSource(getServletContext());
         JedisPool jedisPool = ApplicationContextListener.getJedisPool(getServletContext());
 
+        // 1. Try Redis GET
         try (Jedis jedis = jedisPool.getResource()) {
             String cached = jedis.get(CACHE_KEY);
 
@@ -58,13 +60,21 @@ public class LifeStagesServlet extends HttpServlet {
                 log.debug("Cache hit: {}", CACHE_KEY);
                 return gson.fromJson(cached, listType);
             }
-
-            log.debug("Cache miss: {} → querying DB", CACHE_KEY);
-            DataSource replicaDs = ApplicationContextListener.getReplicaDataSource(getServletContext());
-            List<Map<String, Object>> result = new LifeStageDao(replicaDs).findAll();
-
-            jedis.setex(CACHE_KEY, TTL_SECONDS, gson.toJson(result));
-            return result;
+        } catch (Exception e) {
+            log.warn("Redis unavailable, fallback to DB: {}", e.getMessage());
         }
+
+        // 2. Cache Miss -> querying DB
+        log.debug("Cache miss: {} → querying DB", CACHE_KEY);
+        List<Map<String, Object>> result = new LifeStageDao(replicaDs).findAll();
+            
+        // 3. Try Redis SET
+        try (Jedis jedis = jedisPool.getResource()) {
+            jedis.setex(CACHE_KEY, TTL_SECONDS, gson.toJson(result));
+        } catch (Exception e) {
+            log.warn("Failed to store cache in Redis: {}", e.getMessage());
+        }
+        
+        return result;
     }
 }
