@@ -37,7 +37,7 @@ public class InfoServlet extends HttpServlet {
         
         // 1. 4개의 쿼리를 비동기로 동시 실행 시작 (병렬 처리)
         CompletableFuture<List<Map<String, Object>>> creditFuture = CompletableFuture.supplyAsync(() -> dao.findCreditOfCheckByLifeStageMock(lifeStageCode));
-        CompletableFuture<List<Map<String, Object>>> tierFuture = CompletableFuture.supplyAsync(() -> dao.findMembershipTierByLifestageMock(lifeStageCode));
+        CompletableFuture<List<Map<String, Object>>> tierFuture = CompletableFuture.supplyAsync(() -> dao.findMembershipTierByLifeStageMock(lifeStageCode));
         CompletableFuture<List<Map<String, Object>>> consumptionFuture = CompletableFuture.supplyAsync(() -> dao.findConsumptionTypeByLifeStageMock(lifeStageCode));
         CompletableFuture<List<Map<String, Object>>> top5Future = CompletableFuture.supplyAsync(() -> dao.findTop5ByLifeStageMock(lifeStageCode));
 
@@ -96,7 +96,7 @@ public class InfoServlet extends HttpServlet {
 
         if (isResultValid(result)) {
             for (Map<String, Object> row : result) {
-                String formattedCnt = String.format("%,d", (int)row.get("CNT"));
+                String formattedCnt = String.format("%,d", row.get("CNT"));
                 String tier = convertToTier(row.get("MBR_RK"));
                 out.println("<tr><td>" + tier + "</td><td>" + formattedCnt + " 명</td>");
                 out.println("<td class='highlight-blue'>" + row.get("RATIO_PCT") + " %</td></tr>");
@@ -182,7 +182,7 @@ public class InfoServlet extends HttpServlet {
             case "GOLLIFE":      return "중년";
             case "SECLIFE":      return "액티브시니어";
             case "RETIR":        return "은퇴";
-            default:             return lifeStage;
+            default:             return "알 수 없음";
         }
     }
     
