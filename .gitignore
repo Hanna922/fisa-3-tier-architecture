@@ -17,3 +17,6 @@ Thumbs.db
 **/*.dat
 # jdbc.properties
 jdbc.properties
+
+# sql
+init.sql
