@@ -87,6 +87,8 @@ public class AdminServlet extends HttpServlet {
 		try (Jedis jedis = jedisPool.getResource()) {
 			jedis.del(CACHE_KEY);
 			log.debug("캐시 무효화: {}", CACHE_KEY);
+		} catch (Exception e) {
+			log.warn("캐시 무효화 실패 (Redis 장애) - DB 데이터는 정상 처리됨: {}", e.getMessage());
 		}
 	}
 
