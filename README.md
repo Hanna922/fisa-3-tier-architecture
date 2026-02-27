@@ -349,8 +349,6 @@ sourceConfig.setDriverClassName("com.mysql.cj.jdbc.Driver");
 replicaConfig.setDriverClassName("com.mysql.cj.jdbc.Driver");
 ```
 
----
-
 ### 2. `LifeStageDao.findAll()` 테이블 없음 오류
 
 **증상**
@@ -377,37 +375,7 @@ String sql = "SELECT LIFE_STAGE"
            + " ORDER BY LIFE_STAGE";
 ```
 
----
-
-### 3. Nginx 경유 시 간헐적 404
-
-**증상**
-
-`curl http://localhost/sample-project/life-stages` 에서 404가 발생하지만, 한 쪽 Tomcat에 직접 접근하면 정상 응답.
-
-**원인**
-
-Nginx가 두 Tomcat(8080, 8090)으로 라운드로빈하는데, 한 인스턴스에만 `sample-project`가 배포된 상태였습니다.
-
-- 8090 Tomcat: 코드 반영됨 → 200 OK
-- 8080 Tomcat: `sample-project` 모듈 미배포 → 404
-
-**진단 방법**
-
-```bash
-curl http://localhost:8080/sample-project/life-stages  # 8080 직접
-curl http://localhost:8090/sample-project/life-stages  # 8090 직접
-```
-
-**해결**
-
-Eclipse `Servers` 탭 → 8080 서버 더블클릭 → `Modules` 탭 → `sample-project` 추가 → Stop → Clean → Start
-
-> 정상 배포 시 Tomcat 기동 시간이 300ms → 2~3초로 늘어납니다 (HikariCP 초기화 포함).
-
----
-
-### 4. Windows에서 `docker exec -it` TTY 오류
+### 3. Windows에서 `docker exec -it` TTY 오류
 
 **증상**
 
@@ -432,7 +400,7 @@ winpty docker exec -it fisa-redis redis-cli GET "life-stages:all"
 
 ---
 
-### 5. `load-data.sh` Windows 미동작
+### 4. `load-data.sh` Windows 미동작
 
 **원인**
 
@@ -456,7 +424,7 @@ load-data.bat "C:\Users\{username}\Desktop\EDU_DATA_F.dat"
 
 ---
 
-### 6. MySQL 8.4 SHOW MASTER STATUS 제거
+### 5. MySQL 8.4 SHOW MASTER STATUS 제거
 
 **원인**
 
