@@ -1,90 +1,97 @@
-# Infra 실행 가이드
+PowerShell 환경에서 발생할 수 있는 리다이렉션(`<`) 오류를 방지하고, 안전하게 테스트를 거쳐 전체 데이터를 적재할 수 있도록 가이드를 정리했습니다.
 
-## 최초 실행 (기존 설치 이력 없음)
+---
 
-```bash
-# 1. 컨테이너 시작 (mysql-router는 이 단계에서 제외됨)
-docker compose up --build -d
+# 🚀 MySQL InnoDB Cluster & Data Setup Guide
 
-# 2. InnoDB Cluster 구성 (node3 데이터는 Clone Plugin이 자동 복사)
-bash setup-cluster.sh
+이 가이드는 MySQL Group Replication 클러스터를 구성하고, 대용량 카드 거래 데이터를 안전하게 적재하는 절차를 안내합니다. **모든 명령어는 `infra` 폴더 내 터미널(PowerShell)에서 실행하는 것을 기준으로 합니다.**
 
-# 3. 데이터 적재 (한 번만 실행)
-bash load-data.sh "<dat 파일 경로>"
+## ✅ 사전 필수 체크
 
-# 4. MySQL Router 기동
-docker compose --profile router up -d
+* `docker-compose.yml`에 `./scripts:/home/scripts` 볼륨 마운트가 설정되어 있어야 합니다.
+* PowerShell 사용 시 `<` 연산자 대신 `Get-Content`와 파이프(`|`)를 사용해야 에러가 발생하지 않습니다.
+
+---
+
+## 1단계: 클러스터(Cluster) 등록하기
+
+먼저 `mysqlsh` 스크립트를 실행하여 3개의 노드를 하나의 클러스터로 묶어줍니다.
+
+```powershell
+# 클러스터 구성 및 노드(node2, node3) 등록
+docker exec -it fisa-mysql-node1 mysqlsh --js --file /home/scripts/register_cluster.js --uri root:1234@localhost:3306 --verbose=1
+
 ```
 
-## 기존 설치에서 전환 (mysql-source/replica → node1/2/3)
+> **참고**: 실행 중 비밀번호 요청이 뜨면 `1234`를 입력하십시오. 작업 완료 후 `cluster.status()` 결과가 출력됩니다.
 
-```bash
-# 1. 컨테이너 중지 (볼륨 유지 — -v 옵션 사용 금지)
-docker compose down
+---
 
-# 2. 컨테이너 기동 (mysql-source-data, mysql-replica-data 볼륨 그대로 마운트됨)
-docker compose up --build -d
+## 2단계: 데이터 적재 테스트 (setup_test.sql)
 
-# 3. InnoDB Cluster 구성
-bash setup-cluster.sh
+데이터 규모가 크므로, 먼저 쪼개진 테스트용 파일(`TEST_DATA.dat`)을 통해 적재 프로세스와 복제 상태를 점검합니다. **이 단계를 먼저 수행할 것을 강력히 권장합니다.**
 
-# 4. MySQL Router 기동
-docker compose --profile router up -d
+### 방법 A: 호스트 터미널에서 즉시 실행 (추천)
+
+```powershell
+Get-Content ./scripts/setup_test.sql -Raw | docker exec -i fisa-mysql-node1 mysql --local-infile=1 -u root -p1234
+
 ```
 
-## 재시작 (볼륨 유지)
+### 방법 B: 컨테이너 내부 접속 후 실행
 
-```bash
-docker compose down
-docker compose up -d
-docker compose --profile router up -d
+```powershell
+# 1. 컨테이너 접속
+docker exec -it fisa-mysql-node1 bash
+
+# 2. 내부 경로에 있는 파일로 적재
+mysql --local-infile=1 -u root -p1234 < /home/scripts/setup_test.sql
+
 ```
 
-## 초기화 후 재시작 (볼륨 삭제)
+### 🔍 검증 (Verification)
 
-```bash
-docker compose down -v
-docker compose up --build -d
-bash setup-cluster.sh
-bash load-data.sh "<dat 파일 경로>"
-docker compose --profile router up -d
-```
+적재 후, **Node1**과 **Node2** 각각에 접속하여 데이터 건수가 일치하는지 확인합니다.
 
-## 클러스터 상태 확인
+```sql
+-- 각 노드(node1, node2)에서 실행
+mysql -u root -p1234 -e "SELECT COUNT(*) FROM card_db.CARD_TRANSACTION;"
 
-```bash
-docker exec -it fisa-mysql-shell mysqlsh --uri root:1234@mysql-node1:3306 \
-    --js -e "var c = dba.getCluster(); print(JSON.stringify(c.status(), null, 2));"
 ```
 
 ---
 
-## profiles: [router] 란?
+## 3단계: 전체 데이터 적재하기 (setup.sql)
 
-Docker Compose의 `profiles` 기능은 서비스를 논리적 그룹으로 분리해, **기본 실행(`docker compose up`)에서 제외**할 수 있게 합니다.
+테스트 결과가 정상(건수 일치 및 한글 깨짐 없음)이라면 원본 데이터(`EDU_DATA_F.dat`)를 적재합니다.
 
-```yaml
-mysql-router:
-  profiles:
-    - router   # 이 서비스는 기본 up 대상에서 제외됨
-```
+### 방법 A: 호스트 터미널에서 즉시 실행
 
-| 명령어 | router 기동 여부 |
-|---|---|
-| `docker compose up -d` | ❌ 제외 |
-| `docker compose --profile router up -d` | ✅ 포함 |
-
-### 이 프로젝트에서 사용하는 이유
-
-MySQL Router는 InnoDB Cluster가 완전히 구성된 후에야 정상 기동됩니다.
-Router가 기동 시 클러스터 메타데이터를 읽어 bootstrap하기 때문에, 클러스터가 없는 상태에서 먼저 뜨면 오류가 발생합니다.
+```powershell
+Get-Content ./scripts/setup.sql -Raw | docker exec -i fisa-mysql-node1 mysql --local-infile=1 -u root -p1234
 
 ```
-일반 서비스 (mysql-node1/2/3, redis 등)
-    └── docker compose up -d 로 기동
 
-클러스터 구성 완료 (setup-cluster.sh)
-    └── docker compose --profile router up -d 로 기동
+### 방법 B: 컨테이너 내부 접속 후 실행
+
+```powershell
+# 컨테이너 내부 bash 접속 상태에서
+mysql --local-infile=1 -u root -p1234 < /home/scripts/setup.sql
+
 ```
 
-`depends_on`의 healthcheck 조건과 조합해, 세 노드가 모두 healthy 상태가 된 후에만 Router가 시작되도록 보장합니다.
+---
+
+## 📊 적재 확인 및 상태 체크
+
+데이터 적재가 완료되면 최종적으로 클러스터의 동기화 상태와 데이터 무결성을 확인합니다.
+
+| 작업 | 명령어 |
+| --- | --- |
+| **데이터 건수 확인** | `SELECT COUNT(*) FROM card_db.CARD_TRANSACTION;` |
+| **데이터 샘플 확인** | `SELECT * FROM card_db.CARD_TRANSACTION LIMIT 10;` |
+| **클러스터 상태 확인** | `mysqlsh --uri root:1234@localhost:3306 --js -e "dba.getCluster('dockercluster').status()"` |
+
+---
+
+**위의 순서대로 테스트 적재(2단계)를 먼저 진행해 보시고, Node2에서도 데이터 건수가 동일하게 조회되는지 확인해 보시겠어요?**

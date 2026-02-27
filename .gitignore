@@ -20,6 +20,8 @@ jdbc.properties
 
 # sql
 init.sql
+setup.sql
+setup_test.sql
 
 # claude project file
 CLAUDE.md

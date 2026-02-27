@@ -25,7 +25,7 @@ services:
       - fisa-network
     restart: unless-stopped
 
-  # MySQL Node1 (Initial Primary) - 기존 mysql-source 데이터 유지
+  # MySQL Node1 
   mysql-node1:
     build:
       context: ./mysql-node1
@@ -40,6 +40,8 @@ services:
       MYSQL_PASSWORD: 1234
     volumes:
       - mysql-node1-data:/var/lib/mysql
+      - ./data:/var/lib/mysql-files  # 데이터 파일
+      - ./scripts:/home/scripts # 스크립트 파일
     networks:
       - fisa-network
     restart: unless-stopped
@@ -49,7 +51,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # MySQL Node2 (Secondary) - 기존 mysql-replica 데이터 유지
+  # MySQL Node2 
   mysql-node2:
     build:
       context: ./mysql-node2
@@ -73,7 +75,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # MySQL Node3 (Secondary - 신규)
+  # MySQL Node3 
   mysql-node3:
     build:
       context: ./mysql-node3
@@ -98,7 +100,6 @@ services:
       retries: 5
 
   # MySQL Router (R/W Split Proxy)
-  # setup-cluster.sh 완료 후 기동: docker compose --profile router up -d
   mysql-router:
     image: mysql/mysql-router:8.4
     container_name: fisa-mysql-router
