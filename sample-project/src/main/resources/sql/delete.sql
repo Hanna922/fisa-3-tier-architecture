@@ -1,0 +1,2 @@
+-- 기준시점 + 고객번호 기준 DELETE
+DELETE FROM CARD_TRANSACTION WHERE BAS_YH = ? AND SEQ = ?;
