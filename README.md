@@ -33,59 +33,88 @@ Client (Browser / curl)
 └──┬───┘  └──┬───┘
    └────┬────┘
         │ JDBC
-   ┌────┴─────────────────┐
-   │                      │
-   ▼ :3307                ▼ :3308
-┌──────────────┐  ┌──────────────────┐
-│ MySQL Source │  │  MySQL Replica   │
-│(Write/Read)  │◄─│   (Read Only)    │
-│   Docker     │  │    Docker        │
-└──────────────┘  └──────────────────┘
-        ▲ Binlog Replication (GTID)
+   ┌────┴──────────────────────────┐
+   │ SOURCE_DS :3307               │ REPLICA_DS :3308
+   ▼ (쓰기/읽기)                   ▼ (읽기 전용)
+┌──────────────┐           ┌──────────────┐
+│ MySQL Node1  │           │ MySQL Node2  │
+│  (Primary)   │           │ (Secondary)  │
+└──────┬───────┘           └──────┬───────┘
+       │  InnoDB Cluster           │
+       │  Group Replication        │
+       │  (자동 동기화)             │
+       └──────────┬────────────────┘
+                  │
+           ┌──────┴──────┐
+           ▼             ▼
+    ┌────────────┐ ┌────────────┐
+    │ MySQL Node2│ │ MySQL Node3│
+    │(Secondary) │ │(Secondary) │
+    └────────────┘ └────────────┘
+
+   ┌──────────────┐
+   │ MySQL Router │  R/W Proxy (별도 기동)
+   │  :6446 (R/W) │  docker compose --profile router up -d
+   │  :6447 (R/O) │
+   └──────────────┘
 
    ┌────────────┐
    │   Redis    │  Cache Layer
-   │  :6379     │  TTL 3600s
-   │  Docker    │
+   │   :6379    │  TTL 3600s
+   │   Docker   │
    └────────────┘
 ```
 
 ### 계층별 역할
 
-| 계층         | 구성 요소      | 역할                                         |
-| ------------ | -------------- | -------------------------------------------- |
-| Presentation | Nginx          | HTTP 요청 수신, 두 대의 Tomcat으로 부하 분산 |
-| Application  | Tomcat WAS × 2 | 비즈니스 로직 처리, DB 접근, 캐시 조회       |
-| Cache        | Redis          | 반복 조회 결과 캐싱, DB 부하 절감            |
-| Data         | MySQL Source   | 쓰기/읽기 겸용 (Source)                      |
-| Data         | MySQL Replica  | 읽기 전용 (Replica), Source와 실시간 동기화  |
+| 계층         | 구성 요소        | 역할                                              |
+| ------------ | ---------------- | ------------------------------------------------- |
+| Presentation | Nginx            | HTTP 요청 수신, 두 대의 Tomcat으로 부하 분산      |
+| Application  | Tomcat WAS × 2   | 비즈니스 로직 처리, DB 접근, 캐시 조회            |
+| Cache        | Redis            | 반복 조회 결과 캐싱, DB 부하 절감                 |
+| Data         | MySQL Node1      | Primary — 쓰기/읽기 처리                          |
+| Data         | MySQL Node2, 3   | Secondary — 읽기 전용, Node1과 자동 동기화        |
+| Proxy        | MySQL Router     | R/W 분리 프록시 (클러스터 구성 완료 후 별도 기동) |
 
 ### Source / Replica 분기 전략
 
 ```
 읽기 요청 (SELECT)
   → LifeStageDao(REPLICA_DS)
-      → MySQL Replica :3308
+      → MySQL Node2 :3308
 
-쓰기 요청 (INSERT / UPDATE / DELETE)
-  → XxxDao(SOURCE_DS)
-      → MySQL Source :3307
+쓰기 요청 (INSERT / DELETE)
+  → LifeStageDao(SOURCE_DS)
+      → MySQL Node1 :3307
 ```
 
-같은 hostname으로 포트를 분리하는 방식은 Docker 포트 매핑으로 구현합니다.
+- Source: `localhost:3307` → Node1 컨테이너 내부 `3306`
+- Replica: `localhost:3308` → Node2 컨테이너 내부 `3306`
 
-- Source: `localhost:3307` → Docker 컨테이너 내부 `3306`
-- Replica: `localhost:3308` → Docker 컨테이너 내부 `3306`
-
-### Redis Cache-Aside 패턴
+### Redis Cache-Aside + Cache Stampede 방지
 
 ```
-요청 → jedis.get("life-stages:all")
-           │
-      ┌────┴────┐
-      │ null?   │
-      ├─ Yes ───► MySQL 조회 → jedis.setex(key, 3600, json) → 응답
-      └─ No ────► JSON 역직렬화 → 응답  (DB 미접근)
+요청 → [1단계] Redis GET("life-stages:all")
+              │
+         ┌────┴────┐
+         │ Hit?    │
+         ├─ Yes ───► JSON 역직렬화 → 응답 (DB 미접근)
+         └─ No ────► [2단계] 분산 락(SETNX) 획득 시도
+                           │
+                    ┌──────┴──────┐
+                    │ 락 획득?    │
+                    ├─ Yes ───────► DB 조회 → Redis SET(TTL=3600) → 락 해제 → 응답
+                    └─ No ────────► 100ms 대기 후 Redis 재조회 (최대 50회)
+                                              │
+                                    캐시 없으면 → DB 직접 조회 (최후 수단)
+
+Redis 장애 시: 각 단계의 예외를 독립적으로 catch → DB Fallback → 정상 응답
+```
+
+쓰기(INSERT/DELETE) 후 캐시 무효화:
+```
+AdminServlet.doPost() → DB 쓰기 → invalidateCache() → jedis.del("life-stages:all")
+                                  └ Redis 장애 시 WARN 로그만 기록, DB 성공 응답은 그대로 반환
 ```
 
 ## 기술 스택
@@ -103,7 +132,8 @@ Client (Browser / curl)
 | Boilerplate     | Lombok                  | 1.18.38         |
 | Load Balancer   | Nginx                   | latest          |
 | Cache           | Redis                   | 7.2-alpine      |
-| Database        | MySQL                   | 8.4             |
+| Database        | MySQL InnoDB Cluster    | 8.4             |
+| DB Proxy        | MySQL Router            | 8.4.0           |
 | Container       | Docker / Docker Compose | -               |
 | IDE             | Eclipse                 | -               |
 
@@ -112,24 +142,32 @@ Client (Browser / curl)
 ```
 sample-workspace/
 ├── README.md
-├── infra/                          # 인프라 설정
-│   ├── docker-compose.yml          # 컨테이너 정의 (Nginx, MySQL×2, Redis)
-│   ├── setup-replication.sh        # MySQL Source-Replica 복제 초기 설정
-│   ├── load-data.sh                # 데이터 적재 (Linux/Mac)
-│   ├── load-data.bat               # 데이터 적재 (Windows cmd)
+├── infra/                              # 인프라 설정
+│   ├── README.md                       # InnoDB Cluster 구성 가이드
+│   ├── docker-compose.yml              # 컨테이너 정의 (Nginx, MySQL×3, Router, Redis)
+│   ├── setup-replication.sh            # (레거시) MySQL Source-Replica 복제 초기 설정
+│   ├── load-data.sh                    # (레거시) 데이터 적재 스크립트
 │   ├── nginx/
 │   │   ├── Dockerfile
-│   │   └── nginx.conf              # upstream 정의, proxy_set_header 설정
-│   ├── mysql-source/
+│   │   └── nginx.conf                  # upstream 정의, proxy_set_header 설정
+│   ├── mysql-node1/                    # InnoDB Cluster Primary 노드
 │   │   ├── Dockerfile
-│   │   ├── my.cnf                  # binlog 활성화, GTID 설정
-│   │   └── init.sql                # CARD_TRANSACTION DDL, replicator 계정 생성
-│   ├── mysql-replica/
+│   │   └── my.cnf                      # binlog, GTID, Group Replication 설정
+│   ├── mysql-node2/                    # InnoDB Cluster Secondary 노드
 │   │   ├── Dockerfile
-│   │   └── my.cnf                  # read_only, GTID 설정
-│   └── mysql-source/*.sql          # 분석 쿼리 모음
+│   │   └── my.cnf                      # read-only, Group Replication 설정
+│   ├── mysql-node3/                    # InnoDB Cluster Secondary 노드
+│   │   ├── Dockerfile
+│   │   └── my.cnf                      # read-only, Group Replication 설정
+│   ├── data/                           # 데이터 파일 (gitignore 대상)
+│   │   ├── EDU_DATA_F.dat              # 원본 데이터 (약 538만 행)
+│   │   └── TEST_DATA_F.dat             # 테스트용 데이터 (소량)
+│   └── scripts/
+│       ├── register_cluster.js         # InnoDB Cluster 구성 스크립트 (mysqlsh)
+│       ├── setup.sql                   # 전체 데이터 적재 SQL
+│       └── setup_test.sql              # 테스트 데이터 적재 SQL
 │
-├── libraries/                      # 공유 JAR 파일
+├── libraries/                          # 공유 JAR 파일
 │   ├── HikariCP-5.0.1.jar
 │   ├── jedis-5.1.0.jar
 │   ├── gson-2.10.1.jar
@@ -137,41 +175,43 @@ sample-workspace/
 │   ├── mysql-connector-j-8.4.0.jar
 │   ├── slf4j-api-2.0.16.jar
 │   ├── logback-*.jar
-│   └── lombok-1.18.38.jar
+│   ├── lombok-1.18.38.jar
+│   └── servlet-api.jar                 # Tomcat 제공, WAR 배포 제외(nondependency)
 │
-└── sample-project/                 # Java 웹 애플리케이션
+└── sample-project/                     # Java 웹 애플리케이션
     └── src/main/
         ├── java/dev/sample/
-        │   ├── ApplicationContextListener.java   # HikariCP + Redis 초기화
+        │   ├── ApplicationContextListener.java   # HikariCP(Source/Replica) + Redis 초기화
+        │   ├── filter/
+        │   │   ├── AuthFilter.java               # 인증 필터 (/life-stages, /info, /admin/*)
+        │   │   └── UTFEncodingFilter.java         # 전체 경로 UTF-8 인코딩
         │   ├── servlet/
-        │   │   └── LifeStagesServlet.java         # GET /life-stages
-        │   ├── dao/
-        │   │   └── LifeStageDao.java              # Replica DB 조회
-        │   └── test/                              # 헬스체크 서블릿
-        │       ├── HikariHealthCheckServlet.java
-        │       ├── LogTestServlet.java
-        │       └── LombokTestServlet.java
+        │   │   ├── LifeStagesServlet.java         # GET /life-stages (Redis 캐시)
+        │   │   ├── InfoServlet.java               # GET /info?type={lifeStage}
+        │   │   ├── AdminServlet.java              # GET·POST /admin/card-transaction
+        │   │   ├── LoginServlet.java              # GET·POST /login
+        │   │   └── LogoutServlet.java             # GET /logout
+        │   └── dao/
+        │       ├── LifeStageDao.java              # CARD_TRANSACTION 조회/삽입/삭제
+        │       └── UserDao.java                   # app_user 조회
         ├── resources/
-        │   ├── jdbc.properties         # DB 접속 정보 (gitignore 대상)
-        │   ├── jdbc.properties.example # 접속 정보 템플릿
-        │   └── logback.xml
+        │   ├── jdbc.properties                    # DB·Redis 접속 정보 (gitignore 대상)
+        │   ├── jdbc.properties.example            # 접속 정보 템플릿
+        │   ├── logback.xml                        # dev.sample 패키지 DEBUG 레벨
+        │   └── sql/                               # SQL 파일 (LifeStageDao.loadSQL로 로드)
+        │       ├── insert.sql
+        │       ├── delete.sql
+        │       ├── creditOrNot_by_lifestage.sql
+        │       ├── membershipTier_by_lifestage.sql
+        │       ├── necessaryOrNot_by_lifestage.sql
+        │       └── top5_by_lifestage.sql
         └── webapp/WEB-INF/
             ├── web.xml
-            └── views/life-stages/list.html
+            └── views/
+                ├── auth/login.html
+                ├── life-stages/list.html
+                └── admin/insert.html              # Insert/Delete 탭 통합 페이지
 ```
-
-### 분석 쿼리 목록 (`infra/mysql-source/`)
-
-| 파일                              | 설명                                                 |
-| --------------------------------- | ---------------------------------------------------- |
-| `creditOrNot.sql`                 | 라이프스테이지별 신용카드 vs 체크카드 이용 금액 비중 |
-| `creditOrNot_by_lifestage.sql`    | 위 쿼리의 라이프스테이지 필터 버전                   |
-| `membershipTier.sql`              | 회원등급별 소비 분석                                 |
-| `membershipTier_by_lifestage.sql` | 라이프스테이지 × 회원등급 교차 분석                  |
-| `necessaryOrNot.sql`              | 필수/선택 소비 비율 분석                             |
-| `necessaryOrNot_by_lifestage.sql` | 라이프스테이지별 필수/선택 소비 비율                 |
-| `top5.sql`                        | 라이프스테이지별 TOP 5 업종 (CTE + WINDOW 함수)      |
-| `top5_by_lifestage.sql`           | 특정 라이프스테이지 TOP 5 업종                       |
 
 ## 데이터
 
@@ -179,23 +219,36 @@ sample-workspace/
 - 규모: **약 538만 행** (5,382,734 rows)
 - 주요 컬럼
 
-| 컬럼             | 설명                                     |
-| ---------------- | ---------------------------------------- |
-| `LIFE_STAGE`     | 라이프스테이지 (분석 기준 주요 컬럼)     |
-| `AGE`            | 연령대                                   |
-| `SEX_CD`         | 성별                                     |
-| `MBR_RK`         | 회원등급                                 |
-| `TOT_USE_AM`     | 총 이용금액                              |
-| `CRDSL_USE_AM`   | 신용카드 이용금액                        |
-| `CNF_USE_AM`     | 체크카드 이용금액                        |
+| 컬럼             | 설명                                      |
+| ---------------- | ----------------------------------------- |
+| `LIFE_STAGE`     | 라이프스테이지 (분석 기준 주요 컬럼)      |
+| `AGE`            | 연령대                                    |
+| `SEX_CD`         | 성별                                      |
+| `MBR_RK`         | 회원등급                                  |
+| `TOT_USE_AM`     | 총 이용금액                               |
+| `CRDSL_USE_AM`   | 신용카드 이용금액                         |
+| `CNF_USE_AM`     | 체크카드 이용금액                         |
 | 업종별 금액 컬럼 | INTERIOR_AM, INSUHOS_AM, TRVL_AM 외 다수 |
+
+### 라이프스테이지 코드표
+
+| 코드         | 설명           |
+| ------------ | -------------- |
+| `UNI`        | 대학생         |
+| `NEW_JOB`    | 사회초년생     |
+| `NEW_WED`    | 신혼부부       |
+| `CHILD_BABY` | 영유아자녀     |
+| `CHILD_TEEN` | 청소년자녀     |
+| `CHILD_UNI`  | 대학생자녀     |
+| `GOLLIFE`    | 중년           |
+| `SECLIFE`    | 액티브시니어   |
+| `RETIR`      | 은퇴           |
 
 ## 시작 가이드
 
 ### 사전 요구 사항
 
 - Docker Desktop 실행 중
-- MySQL Client 설치 (데이터 적재 시 필요)
 - Eclipse + Apache Tomcat 9.0 설치
 
 ### 1단계: 인프라 실행
@@ -203,28 +256,59 @@ sample-workspace/
 ```bash
 cd infra
 
-# 컨테이너 빌드 및 실행
-docker compose up --build -d
-
-# MySQL Source-Replica 복제 설정 (최초 1회)
-bash setup-replication.sh
+docker compose down -v
+docker compose up -d --build
 ```
 
-### 2단계: 데이터 적재
+### 2단계: InnoDB Cluster 구성
 
 ```bash
-# Windows (cmd에서 실행)
-load-data.bat "C:\Users\{username}\Desktop\EDU_DATA_F.dat"
+# Git Bash(MINGW64) 기준
+MSYS_NO_PATHCONV=1 winpty docker exec -it fisa-mysql-node1 mysqlsh --js \
+  --file /home/scripts/register_cluster.js \
+  --uri root:1234@localhost:3306 --verbose=1
 
-# Linux / Mac
-bash load-data.sh "/path/to/EDU_DATA_F.dat"
+# 클러스터 구성 완료 후 MySQL Router 기동
+docker compose --profile router up -d
 ```
 
-### 3단계: jdbc.properties 파일에 DB 접속 정보 설정
+### 3단계: 데이터 적재
+
+> 데이터 파일(`EDU_DATA_F.dat`, `TEST_DATA_F.dat`)을 `infra/data/` 디렉토리에 위치시킨 후 실행합니다.
+
+```bash
+# 테스트 데이터 먼저 적재하여 복제 동작 확인
+docker exec fisa-mysql-node1 bash -c \
+  "mysql --local-infile=1 -u root -p1234 < /home/scripts/setup_test.sql"
+
+# 각 노드 데이터 건수 일치 확인
+docker exec fisa-mysql-node1 bash -c "mysql -u root -p1234 -e \"SELECT COUNT(*) FROM card_db.CARD_TRANSACTION;\""
+docker exec fisa-mysql-node2 bash -c "mysql -u root -p1234 -e \"SELECT COUNT(*) FROM card_db.CARD_TRANSACTION;\""
+docker exec fisa-mysql-node3 bash -c "mysql -u root -p1234 -e \"SELECT COUNT(*) FROM card_db.CARD_TRANSACTION;\""
+
+# 정상 확인 후 전체 데이터 적재
+docker exec fisa-mysql-node1 bash -c \
+  "mysql --local-infile=1 -u root -p1234 < /home/scripts/setup.sql"
+```
+
+### 4단계: jdbc.properties 생성
 
 > `jdbc.properties`는 `.gitignore`에 등록되어 있습니다. 민감 정보를 커밋하지 않도록 주의하세요.
 
-### 4단계: Eclipse에서 Tomcat 실행
+```bash
+cp sample-project/src/main/resources/jdbc.properties.example \
+   sample-project/src/main/resources/jdbc.properties
+# 이후 jdbc.properties에 실제 username, password 입력
+```
+
+### 5단계: app_user 계정 생성 (로그인용)
+
+```bash
+docker exec fisa-mysql-node1 mysql -u root -p1234 -e \
+  "USE card_db; CREATE TABLE IF NOT EXISTS app_user (user_id VARCHAR(50) PRIMARY KEY, password VARCHAR(100), role VARCHAR(20)); INSERT INTO app_user VALUES ('admin', '1234', 'ADMIN');"
+```
+
+### 6단계: Eclipse에서 Tomcat 실행
 
 1. Eclipse `Servers` 탭 → Tomcat 서버 더블클릭
 2. `Modules` 탭 → `sample-project`가 등록되어 있는지 확인
@@ -234,15 +318,11 @@ bash load-data.sh "/path/to/EDU_DATA_F.dat"
 ### 동작 확인
 
 ```bash
-# Nginx 경유 (권장)
-curl http://localhost/sample-project/life-stages
+# 로그인 페이지
+curl http://localhost/sample-project/login
 
-# Tomcat 직접
-curl http://localhost:8080/sample-project/life-stages
-curl http://localhost:8090/sample-project/life-stages
-
-# Redis 캐시 확인 (첫 요청 후)
-docker exec fisa-redis redis-cli GET "life-stages:all"
+# Redis 캐시 확인 (life-stages 첫 요청 후)
+docker exec fisa-redis redis-cli KEYS "life-stages*"
 
 # HikariCP 헬스체크
 curl http://localhost/sample-project/test/hikari
@@ -250,12 +330,16 @@ curl http://localhost/sample-project/test/hikari
 
 ## API 엔드포인트
 
-| 경로                          | 메서드 | 설명                       | DataSource           |
-| ----------------------------- | ------ | -------------------------- | -------------------- |
-| `/sample-project/life-stages` | GET    | 라이프스테이지별 소비 집계 | Replica (Redis 캐시) |
-| `/sample-project/test/hikari` | GET    | HikariCP 커넥션 헬스체크   | -                    |
-| `/sample-project/test/log`    | GET    | Logback 로깅 테스트        | -                    |
-| `/sample-project/test/lombok` | GET    | Lombok 동작 테스트         | -                    |
+| 경로                                    | 메서드   | 설명                                | 인증 필요 | DataSource           |
+| --------------------------------------- | -------- | ----------------------------------- | --------- | -------------------- |
+| `/sample-project/login`                 | GET      | 로그인 페이지                       | 불필요    | -                    |
+| `/sample-project/login`                 | POST     | 로그인 처리 → `/life-stages` 이동   | 불필요    | Source               |
+| `/sample-project/logout`                | GET      | 세션 무효화 → `/login` 이동         | -         | -                    |
+| `/sample-project/life-stages`           | GET      | 라이프스테이지별 소비 집계          | 필요      | Replica (Redis 캐시) |
+| `/sample-project/info?type={lifeStage}` | GET      | 라이프스테이지 상세 분석 (4개 쿼리) | 필요      | Replica              |
+| `/sample-project/admin/card-transaction`| GET      | Admin 페이지 (Insert/Delete 탭)     | 필요      | -                    |
+| `/sample-project/admin/card-transaction`| POST     | 데이터 삽입 또는 삭제               | 필요      | Source               |
+| `/sample-project/test/hikari`           | GET      | HikariCP 커넥션 헬스체크            | 불필요    | -                    |
 
 ## 주요 설계 결정
 
@@ -266,61 +350,101 @@ curl http://localhost/sample-project/test/hikari
 ```java
 // ApplicationContextListener.java
 sourceConfig.setDriverClassName("com.mysql.cj.jdbc.Driver");
-sourceConfig.setJdbcUrl(props.getProperty("source.url"));   // :3307
+sourceConfig.setJdbcUrl(props.getProperty("source.url"));   // Node1 :3307
 replicaConfig.setDriverClassName("com.mysql.cj.jdbc.Driver");
-replicaConfig.setJdbcUrl(props.getProperty("replica.url")); // :3308
+replicaConfig.setJdbcUrl(props.getProperty("replica.url")); // Node2 :3308
 ```
 
-- 읽기가 집중되는 서비스에서 Replica로 SELECT 부하를 분산
-- Source는 쓰기 작업 전용으로 보호
+- 읽기가 집중되는 서비스에서 Node2(Secondary)로 SELECT 부하를 분산
+- Node1(Primary)은 쓰기 작업 전용으로 보호
 - 두 풀 모두 `ServletContext`에 등록하여 서블릿에서 정적 메서드로 접근
 
-### DB 접속 정보 외부화 (`jdbc.properties`)
+### InnoDB Cluster (Group Replication)
 
-하드코딩 대신 클래스패스 리소스로 분리합니다.
+MySQL Source-Replica 단방향 복제 대신 InnoDB Cluster를 구성합니다.
+
+```
+Node1 (Primary)  ←─ 자동 Failover ─→  Node2 / Node3 (Secondary)
+     │                                         │
+     └───────── Group Replication ─────────────┘
+                 (동기적 데이터 전파)
+```
+
+- Primary에 커밋된 데이터는 `before_commit` 훅에서 전체 멤버에게 전파 후 응답
+- Node1 장애 시 Node2 또는 Node3이 자동 승격(Failover)
+- MySQL Router(`:6446` R/W, `:6447` R/O)로 애플리케이션 코드 변경 없이 R/W 분리 가능
+
+### Redis Cache-Aside + 분산 락 (Cache Stampede 방지)
+
+538만 행 집계 쿼리의 DB 부하를 최소화합니다.
+
+- TTL 만료 순간 동시 요청이 몰려도 **단 1개의 요청만 DB 조회** (분산 락으로 보장)
+- 락 값으로 UUID 사용 → 자신이 획득한 락만 해제 가능
+- Redis 장애 시 GET/SET 블록 각각 독립 catch → DB Fallback → 정상 응답
+
+### Redis 캐시 무효화 (Write-Around 패턴)
+
+INSERT/DELETE 후 `jedis.del(CACHE_KEY)` 호출로 캐시를 무효화합니다.
 
 ```java
-ClassLoader cl = Thread.currentThread().getContextClassLoader();
-try (InputStream is = cl.getResourceAsStream("jdbc.properties")) {
-    props.load(is);
+// AdminServlet.java
+private void invalidateCache() {
+    try (Jedis jedis = jedisPool.getResource()) {
+        jedis.del(CACHE_KEY);
+    } catch (Exception e) {
+        log.warn("캐시 무효화 실패 (Redis 장애) - DB 데이터는 정상 처리됨: {}", e.getMessage());
+    }
 }
 ```
 
-- 환경별(개발/운영) 접속 정보 교체 용이
-- `.gitignore`에 등록하여 민감 정보 커밋 방지
-- `jdbc.properties.example`을 함께 제공하여 온보딩 편의성 확보
+- 캐시 무효화 실패는 치명적이지 않음 — DB 쓰기 성공 응답은 그대로 반환
+- 다음 GET 요청 시 TTL 만료 후 DB 재조회로 자연스럽게 캐시 재적재
 
-### Redis Cache-Aside (대용량 데이터 대응)
+### SQL 파일 외부화 (`loadSQL()`)
 
-538만 행의 집계 쿼리는 최초 1회만 실행합니다.
+분석 쿼리를 Java 코드에 하드코딩하지 않고 `src/main/resources/sql/`에 별도 관리합니다.
 
+```java
+private String loadSQL(String filename) {
+    InputStream is = getClass().getClassLoader().getResourceAsStream("sql/" + filename);
+    if (is == null) {
+        throw new RuntimeException("SQL 파일을 찾을 수 없습니다: sql/" + filename);
+    }
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+        return reader.lines().collect(Collectors.joining("\n"));
+    } catch (Exception e) {
+        throw new RuntimeException("SQL 파일 로드 실패: " + filename, e);
+    }
+}
 ```
-첫 요청:  Cache Miss → MySQL GROUP BY 쿼리 → Redis setex(TTL=3600) → 응답
-이후 요청: Cache Hit  → Redis GET → 응답 (DB 미접근)
+
+### 세션 기반 인증 (`AuthFilter`)
+
+`/life-stages`, `/info`, `/admin/*` 경로를 `AuthFilter`로 보호합니다.
+
+```java
+@WebFilter({"/life-stages", "/info", "/admin/*"})
+// 세션에 "loginUser" 속성이 없으면 /login으로 리다이렉트
 ```
 
-- TTL 3600초(1시간) 후 자동 만료 → 다음 요청 시 재적재
-- Gson으로 `List<Map<String, Object>>`를 JSON 직렬화/역직렬화
+- 로그아웃 시 서버 세션 무효화(`session.invalidate()`)와 함께 브라우저 JSESSIONID 쿠키 만료 처리
+- `Cache-Control: no-store` 헤더로 로그아웃 후 브라우저 뒤로가기 방지
 
-### SQL 최적화 (CTE 단일 스캔)
+### InfoServlet 병렬 쿼리 실행
 
-초기 UNION ALL 방식(풀스캔 8회 = 4,300만 행)을 CTE로 개선합니다.
+라이프스테이지 상세 분석 페이지는 4개의 쿼리를 전용 스레드 풀에서 병렬 실행합니다.
 
-```sql
--- Before: UNION ALL 8회 → CARD_TRANSACTION을 8번 풀스캔
-SELECT 'INTERIOR' AS CATEGORY, SUM(INTERIOR_AM) FROM CARD_TRANSACTION
-UNION ALL
-SELECT 'HOSPITAL',              SUM(HOS_AM)      FROM CARD_TRANSACTION
--- ... 6개 더
+```java
+private static final Executor DB_QUERY_POOL = Executors.newFixedThreadPool(10);
 
--- After: CTE 1회 스캔 → 집계 결과(수십 행)를 UNION ALL
-WITH agg AS (
-  SELECT LIFE_STAGE, SUM(INTERIOR_AM) AS INTERIOR, ... FROM CARD_TRANSACTION GROUP BY LIFE_STAGE
-)
-SELECT LIFE_STAGE, 'INTERIOR' AS CATEGORY, INTERIOR FROM agg
-UNION ALL SELECT LIFE_STAGE, 'HOSPITAL', HOSPITAL FROM agg
--- ...
+CompletableFuture.supplyAsync(() -> dao.findCreditOfCheckByLifeStage(code), DB_QUERY_POOL);
+CompletableFuture.supplyAsync(() -> dao.findMembershipTierByLifeStage(code), DB_QUERY_POOL);
+CompletableFuture.supplyAsync(() -> dao.findConsumptionTypeByLifeStage(code), DB_QUERY_POOL);
+CompletableFuture.supplyAsync(() -> dao.findTop5ByLifeStage(code),            DB_QUERY_POOL);
 ```
+
+- `ForkJoinPool.commonPool()` 대신 전용 풀 사용 → JVM 전역 공용 풀 고갈 방지
+- 스레드 풀 크기(10)를 HikariCP 최대 커넥션 수와 맞춤
 
 ## 트러블슈팅
 
@@ -329,102 +453,159 @@ UNION ALL SELECT LIFE_STAGE, 'HOSPITAL', HOSPITAL FROM agg
 **증상**
 
 ```
-SEVERE: Exception sending context initialized event to listener instance of class
-[dev.sample.ApplicationContextListener]
+SEVERE: Exception sending context initialized event
 java.lang.RuntimeException: Failed to get driver instance for
 jdbcUrl=jdbc:mysql://localhost:3307/card_db
 ```
 
 **원인**
 
-`driverClassName`을 명시하지 않으면 HikariCP가 `DriverManager.getDriver(url)`로 드라이버를 탐색하는데, Servlet 컨테이너의 클래스로더 격리로 인해 MySQL Connector/J 자동 등록이 실패할 수 있습니다.
-
-`contextInitialized()`에서 예외가 발생하면 Tomcat이 웹 애플리케이션 전체를 비활성화하므로, 모든 경로가 404를 반환합니다.
+`driverClassName`을 명시하지 않으면 HikariCP가 `DriverManager.getDriver(url)`로 드라이버를 탐색하는데, Servlet 컨테이너의 클래스로더 격리로 인해 MySQL Connector/J 자동 등록이 실패할 수 있습니다. `contextInitialized()`에서 예외가 발생하면 Tomcat이 웹 애플리케이션 전체를 비활성화하므로 모든 경로가 404를 반환합니다.
 
 **해결**
 
 ```java
-// HikariConfig에 드라이버 클래스를 명시적으로 지정
 sourceConfig.setDriverClassName("com.mysql.cj.jdbc.Driver");
 replicaConfig.setDriverClassName("com.mysql.cj.jdbc.Driver");
 ```
 
-### 2. `LifeStageDao.findAll()` 테이블 없음 오류
+---
+
+### 2. `jdbc.properties`를 클래스패스에서 찾을 수 없습니다
 
 **증상**
 
 ```
-SEVERE: Servlet.service() for servlet [dev.sample.servlet.LifeStagesServlet] threw exception
-java.lang.RuntimeException: LifeStageDao.findAll() 실행 중 오류 발생
+SEVERE: Exception sending context initialized event
+java.lang.RuntimeException: jdbc.properties를 클래스패스에서 찾을 수 없습니다.
 ```
 
 **원인**
 
-DAO 골격의 플레이스홀더 SQL이 `SELECT * FROM life_stages`로 작성되어 있었으나, 실제 DB에는 `CARD_TRANSACTION` 테이블만 존재합니다.
+`jdbc.properties`는 `.gitignore`에 등록되어 있어 git clone/pull 후 파일이 없습니다.
 
 **해결**
 
-```java
-String sql = "SELECT LIFE_STAGE"
-           + "     , COUNT(*)          AS CNT"
-           + "     , SUM(TOT_USE_AM)   AS TOT_USE_AM"
-           + "     , SUM(CRDSL_USE_AM) AS CRDSL_USE_AM"
-           + "     , SUM(CNF_USE_AM)   AS CNF_USE_AM"
-           + "  FROM CARD_TRANSACTION"
-           + " GROUP BY LIFE_STAGE"
-           + " ORDER BY LIFE_STAGE";
+```bash
+cp sample-project/src/main/resources/jdbc.properties.example \
+   sample-project/src/main/resources/jdbc.properties
+# 이후 username, password 입력
 ```
+
+---
 
 ### 3. Windows에서 `docker exec -it` TTY 오류
 
 **증상**
 
 ```
-the input device is not a TTY.
-If you are using mintty, try prefixing the command with 'winpty'
+the input device is not a TTY. If you are using mintty, try prefixing the command with 'winpty'
 ```
-
-**원인**
-
-Windows Git Bash(mintty)는 `-it` 플래그가 요구하는 TTY를 제공하지 않습니다.
 
 **해결**
 
 ```bash
-# 방법 1: -it 제거 (단순 조회는 인터랙션 불필요)
-docker exec fisa-redis redis-cli GET "life-stages:all"
+# -it 제거 (인터랙션 불필요한 경우)
+docker exec fisa-mysql-node1 mysql -u root -p1234 -e "SELECT 1;"
 
-# 방법 2: winpty 접두어
-winpty docker exec -it fisa-redis redis-cli GET "life-stages:all"
+# winpty 접두어 사용
+winpty docker exec -it fisa-mysql-node1 mysqlsh ...
 ```
 
 ---
 
-### 4. `load-data.sh` Windows 미동작
+### 4. Git Bash에서 컨테이너 내부 경로 변환 오류
+
+**증상**
+
+```
+Failed to open file 'C:/Program Files/Git/home/scripts/register_cluster.js'
+```
 
 **원인**
 
-`.sh` 파일은 Windows 명령 프롬프트(cmd)에서 실행할 수 없습니다.
+Git Bash(MINGW64)가 `/home/...` 같은 Unix 절대 경로를 Windows 경로로 자동 변환합니다. `winpty`를 사용할 경우 `MSYS_NO_PATHCONV=1`이 적용되지 않습니다.
 
 **해결**
 
-`load-data.bat`을 별도 작성하여 Windows 환경을 지원합니다.
+```bash
+# 슬래시 이중 사용으로 경로 변환 우회
+winpty docker exec -it fisa-mysql-node1 mysqlsh --js \
+  --file //home/scripts/register_cluster.js \
+  --uri root:1234@localhost:3306
 
-- `$1` → `%~1` (인자 따옴표 자동 제거)
-- `[ -z "$VAR" ]` → `"%VAR%"==""`
-- `$?` → `%ERRORLEVEL%`
-- `<<EOF ... EOF` Heredoc → `-e "..."` 한 줄 방식
-- 경로 역슬래시 변환: `set "PATH_FWD=%PATH:\=/%"` (LOAD DATA LOCAL INFILE은 슬래시 필요)
-
-```cmd
-# cmd에서 실행 (Git Bash 불가)
-cd D:\sample-workspace\infra
-load-data.bat "C:\Users\{username}\Desktop\EDU_DATA_F.dat"
+# 또는 cmd.exe로 실행
+cmd //c "docker exec -i fisa-mysql-node1 mysqlsh --js --file /home/scripts/register_cluster.js --uri root:1234@localhost:3306"
 ```
 
 ---
 
-### 5. MySQL 8.4 SHOW MASTER STATUS 제거
+### 5. `ERROR 3100`: InnoDB Cluster 구성 후 데이터 적재 실패
+
+**증상**
+
+```
+ERROR 3100 (HY000) at line 84: Error on observer while running replication hook 'before_commit'.
+```
+
+**원인**
+
+`setup.sql`의 벌크 로드 최적화 설정(`SET unique_checks=0`, `SET foreign_key_checks=0`)이 Group Replication의 `before_commit` 훅과 충돌합니다. Group Replication은 write set 기반 충돌 감지를 위해 `unique_checks=ON`을 요구합니다.
+
+**해결**
+
+InnoDB Cluster 구성 전에 데이터를 적재합니다. 클러스터 구성 후 Clone Plugin이 node2, node3으로 데이터를 자동 복사합니다.
+
+---
+
+### 6. `super_read_only`로 인해 데이터 적재 불가
+
+**증상**
+
+```
+ERROR 1290 (HY000) at line 2: The MySQL server is running with the --super-read-only option
+so it cannot execute this statement
+```
+
+**원인**
+
+이전 클러스터 구성 시도의 잔여 상태가 볼륨에 남아 있어 컨테이너 재시작 시 `super_read_only=ON` 상태로 기동됩니다.
+
+**해결**
+
+볼륨을 초기화하고 처음부터 재실행합니다.
+
+```bash
+docker compose down -v
+docker compose up -d --build
+```
+
+---
+
+### 7. 로그아웃 후 브라우저에 JSESSIONID 잔존
+
+**증상**
+
+로그아웃 후 리다이렉션은 정상이나 개발자 도구 Cookies 탭에 JSESSIONID가 남아 있음.
+
+**원인**
+
+`session.invalidate()`는 서버 측 세션 객체만 제거하며 브라우저 쿠키는 삭제하지 않습니다.
+
+**해결**
+
+로그아웃 시 `Max-Age=0` 쿠키를 응답에 포함하여 브라우저가 즉시 삭제하도록 합니다.
+
+```java
+Cookie cookie = new Cookie("JSESSIONID", "");
+cookie.setMaxAge(0);
+cookie.setPath("/");
+resp.addCookie(cookie);
+```
+
+---
+
+### 8. MySQL 8.4 `SHOW MASTER STATUS` 제거
 
 **원인**
 
@@ -439,5 +620,3 @@ SHOW MASTER STATUS;
 -- After (MySQL 8.4+)
 SHOW BINARY LOG STATUS;
 ```
-
-`setup-replication.sh`에 반영되어 있습니다.
