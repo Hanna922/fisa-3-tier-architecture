@@ -2,11 +2,15 @@
 
 라이프스테이지별 카드 소비 패턴을 분석하는 3-Tier 웹 애플리케이션입니다.
 
-<img width="920" height="685" alt="image" src="https://github.com/user-attachments/assets/e239b026-8350-4786-b104-cab5b4f75f90" />
 
-<img width="1024" height="763" alt="image" src="https://github.com/user-attachments/assets/91ca6c8b-2b3f-4488-a6ef-d73151afe797" />
+https://github.com/user-attachments/assets/d671a47e-7954-4691-b117-42c121bc56cf
 
-<img width="2934" height="1586" alt="image" src="https://github.com/user-attachments/assets/0751cd17-c754-4faa-8f2b-3e2b6fa7fbdf" />
+https://github.com/user-attachments/assets/726a165d-9695-4858-bfa1-69710c3addf1
+
+
+
+
+
 
 
 ## 목차
