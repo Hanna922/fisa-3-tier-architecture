@@ -23,7 +23,7 @@ docker compose up -d --build
 
 </br>
 
-## 1단계: 클러스터 등록, 라우터 구성
+## 1단계: 클러스터 등록
 
 먼저 `mysqlsh` 스크립트를 실행하여 3개의 노드를 하나의 클러스터로 묶어줍니다.
 
@@ -33,11 +33,7 @@ docker exec -it fisa-mysql-node1 mysqlsh --js --file /home/scripts/register_clus
 ```
 
 실행 중 비밀번호 요청이 뜨면 `1234`를 입력하세요. 작업 완료 후 `cluster.status()` 결과가 출력됩니다.
-이후 라우터 컨테이너를 실행합니다.
 
-```bash
-docker compose --profile router up -d
-```
 
 </br>
 
@@ -76,6 +72,33 @@ docker exec -it fisa-mysql-node1 bash -c "mysql --local-infile=1 -u root -p1234 
 
 </br>
 
+## 4단계: 라우터 설정하기
+
+라우터 컨테이너를 실행합니다. 
+
+```bash
+docker compose --profile router up -d
+```
+```bash
+# 기존 메타데이터와 충돌 시 --force 옵션으로 bootstrap 덮어쓰기
+docker exec -it fisa-mysql-router mysqlrouter \
+  --bootstrap root:1234@fisa-mysql-node1:3306 \
+  --user=mysqlrouter \
+  --force
+```
+
+```bash
+# 라우터 접속 테스트
+
+# 6446 포트로 접속하여 현재 쓰기 가능한 노드 확인
+mysql -u root -p1234 -h 127.0.0.1 -P 6446 -e "SELECT @@server_uuid, @@hostname;"
+
+# 6447 포트로 접속하여 읽기 전용 노드로 연결되는지 확인
+mysql -u root -p1234 -h 127.0.0.1 -P 6447 -e "SELECT @@server_uuid, @@hostname;"
+```
+
+</br>
+
 ---
 
 # 참고 자료
@@ -101,3 +124,4 @@ dba.checkInstanceConfiguration("root@fisa-mysql-node2:3306")
 \quit
 
 ```
+
