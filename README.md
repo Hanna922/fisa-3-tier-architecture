@@ -15,55 +15,57 @@
 
 ## 아키텍처 개요
 
-```
-Client (Browser / curl)
-        │
-        ▼ HTTP :80
-┌───────────────────┐
-│       Nginx       │  Load Balancer
-│(Docker Container) │  Round-Robin
-└────────┬──────────┘
-         │
-    ┌────┴────┐
-    ▼         ▼
- :8080      :8090
-┌──────┐  ┌──────┐
-│Tomcat│  │Tomcat│  WAS × 2 (Local Process)
-│ WAS  │  │ WAS  │  Servlet/JSP, HikariCP
-└──┬───┘  └──┬───┘
-   └────┬────┘
-        │ JDBC
-   ┌────┴──────────────────────────┐
-   │ SOURCE_DS :3307               │ REPLICA_DS :3308
-   ▼ (쓰기/읽기)                   ▼ (읽기 전용)
-┌──────────────┐           ┌──────────────┐
-│ MySQL Node1  │           │ MySQL Node2  │
-│  (Primary)   │           │ (Secondary)  │
-└──────┬───────┘           └──────┬───────┘
-       │  InnoDB Cluster           │
-       │  Group Replication        │
-       │  (자동 동기화)             │
-       └──────────┬────────────────┘
-                  │
-           ┌──────┴──────┐
-           ▼             ▼
-    ┌────────────┐ ┌────────────┐
-    │ MySQL Node2│ │ MySQL Node3│
-    │(Secondary) │ │(Secondary) │
-    └────────────┘ └────────────┘
+```mermaid
+graph TD
+    subgraph Client_Layer [External]
+        A[Client: Browser / curl]
+    end
 
-   ┌──────────────┐
-   │ MySQL Router │  R/W Proxy (별도 기동)
-   │  :6446 (R/W) │  docker compose --profile router up -d
-   │  :6447 (R/O) │
-   └──────────────┘
+    subgraph LB_Layer [Load Balancing]
+        B[Nginx: 80]
+    end
 
-   ┌────────────┐
-   │   Redis    │  Cache Layer
-   │   :6379    │  TTL 3600s
-   │   Docker   │
-   └────────────┘
+    subgraph WAS_Layer [Application Layer]
+        C1[Tomcat WAS 1: 8080]
+        C2[Tomcat WAS 2: 8090]
+        R[(Redis: 6379 Cache)]
+    end
+
+    subgraph Proxy_Layer [Database Proxy]
+        P1[MySQL Router: 6446 R/W]
+        P2[MySQL Router: 6447 R/O]
+    end
+
+    subgraph DB_Layer [InnoDB Cluster / Group Replication]
+        D1[(MySQL Node 1: Primary)]
+        D2[(MySQL Node 2: Secondary)]
+        D3[(MySQL Node 3: Secondary)]
+    end
+
+    A --> B
+    B -- Round-Robin --> C1
+    B -- Round-Robin --> C2
+    
+    C1 -.-> R
+    C2 -.-> R
+
+    C1 -- JDBC: Write --> P1
+    C2 -- JDBC: Write --> P1
+    C1 -- JDBC: Read --> P2
+    C2 -- JDBC: Read --> P2
+
+    P1 ==> D1
+    P2 ==> D2
+    P2 ==> D3
+
+    D1 -- Auto Sync --- D2
+    D1 -- Auto Sync --- D3
+    D2 -- Auto Sync --- D3
+
+    style D1 fill:#f96,stroke:#333,stroke-width:2px
+    style R fill:#f66,stroke:#333,stroke-color:#fff
 ```
+
 
 ### 시퀀스 다이어그램
 
@@ -263,15 +265,6 @@ sample-workspace/
 │       └── setup_test.sql              # 테스트 데이터 적재 SQL
 │
 ├── libraries/                          # 공유 JAR 파일
-│   ├── HikariCP-5.0.1.jar
-│   ├── jedis-5.1.0.jar
-│   ├── gson-2.10.1.jar
-│   ├── commons-pool2-2.12.0.jar
-│   ├── mysql-connector-j-8.4.0.jar
-│   ├── slf4j-api-2.0.16.jar
-│   ├── logback-*.jar
-│   ├── lombok-1.18.38.jar
-│   └── servlet-api.jar                 # Tomcat 제공, WAR 배포 제외(nondependency)
 │
 └── sample-project/                     # Java 웹 애플리케이션
     └── src/main/
