@@ -14,6 +14,7 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
 import dev.sample.dao.LifeStageDao;
+import dev.sample.dao.UserDao;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 
@@ -77,5 +78,10 @@ public class AppConfig {
             @Qualifier("replicaDataSource") DataSource ds) {
         return new LifeStageDao(ds);
     }
-    
+
+    @Bean
+    public UserDao userDao(@Qualifier("sourceDataSource") DataSource ds) {
+        return new UserDao(ds);
+    }
+
 }

@@ -8,15 +8,26 @@ import java.sql.ResultSet;
 
 import javax.sql.DataSource;
 
-import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.springframework.context.ApplicationContext;
+
+import dev.sample.ApplicationContextListener;
+
 @WebServlet("/test/hikari")
 public class HikariHealthCheckServlet extends HttpServlet {
+
+    private DataSource ds;
+
+    @Override
+    public void init() throws ServletException {
+        ApplicationContext ctx = ApplicationContextListener.getBeanContainer(getServletContext());
+        ds = ctx.getBean("sourceDataSource", DataSource.class);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -24,16 +35,6 @@ public class HikariHealthCheckServlet extends HttpServlet {
 
         resp.setContentType("text/plain; charset=UTF-8");
         PrintWriter out = resp.getWriter();
-
-        ServletContext ctx = getServletContext();
-        Object obj = ctx.getAttribute("SOURCE_DS");
-        if (obj == null) {
-            resp.setStatus(500);
-            out.println("FAIL: DATA_SOURCE not found in ServletContext");
-            return;
-        }
-
-        DataSource ds = (DataSource) obj;
 
         String sql = "SELECT 1";
 
