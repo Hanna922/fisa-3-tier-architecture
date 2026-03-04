@@ -10,6 +10,8 @@ import javax.sql.DataSource;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import dev.sample.ApplicationContextListener;
 import dev.sample.dao.LifeStageDao;
@@ -21,8 +23,16 @@ public class AdminServlet extends HttpServlet {
 
 	private static final Logger log = LoggerFactory.getLogger(AdminServlet.class);
 	private static final String CACHE_KEY = "life-stages:all";
+	private LifeStageDao lifeStageDaoSource;
+	private JedisPool jedisPool;
 
-	
+	@Override
+	public void init() throws ServletException {
+		ApplicationContext ctx = ApplicationContextListener.getBeanContainer(getServletContext());
+		lifeStageDaoSource = ctx.getBean("lifeStageDaoSource", LifeStageDao.class);
+		jedisPool = ctx.getBean(JedisPool.class);
+		
+	}
 
 	@Override
 	protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -71,21 +81,19 @@ public class AdminServlet extends HttpServlet {
 	}
 
 	private int handleInsert(HttpServletRequest req) {
-		DataSource sourceDs = ApplicationContextListener.getSourceDataSource(getServletContext());
-		return new LifeStageDao(sourceDs).insert(req.getParameter("basYh"), req.getParameter("seq"),
+		return lifeStageDaoSource.insert(req.getParameter("basYh"), req.getParameter("seq"),
 				req.getParameter("lifeStage"), parseLong(req.getParameter("totUseAm")));
 	}
 
 	
 	private int handleDelete(HttpServletRequest req) {
-		DataSource sourceDs = ApplicationContextListener.getSourceDataSource(getServletContext());
-		return new LifeStageDao(sourceDs).delete(req.getParameter("basYh"), req.getParameter("seq"));
+		return lifeStageDaoSource.delete(req.getParameter("basYh"), req.getParameter("seq"));
 	}
 
 	private void invalidateCache() {
-		JedisPool jedisPool = ApplicationContextListener.getJedisPool(getServletContext());
 		try (Jedis jedis = jedisPool.getResource()) {
 			jedis.del(CACHE_KEY);
+			
 			log.debug("캐시 무효화: {}", CACHE_KEY);
 		} catch (Exception e) {
 			log.warn("캐시 무효화 실패 (Redis 장애) - DB 데이터는 정상 처리됨: {}", e.getMessage());

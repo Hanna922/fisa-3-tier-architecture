@@ -16,6 +16,8 @@ import java.util.stream.Collectors;
 
 import javax.sql.DataSource;
 
+import org.springframework.stereotype.Component;
+
 public class LifeStageDao {
 
     private final DataSource dataSource;
