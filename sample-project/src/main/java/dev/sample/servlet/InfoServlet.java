@@ -14,7 +14,7 @@ import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.sql.DataSource;
+import org.springframework.context.ApplicationContext;
 
 import dev.sample.ApplicationContextListener;
 import dev.sample.dao.LifeStageDao;
@@ -28,9 +28,8 @@ public class InfoServlet extends HttpServlet {
 
     @Override
     public void init() throws ServletException {
-        // 서블릿 초기화 시 DAO를 한 번만 생성하여 메모리 및 성능 최적화
-        DataSource replicaDs = ApplicationContextListener.getReplicaDataSource(getServletContext());
-        this.dao = new LifeStageDao(replicaDs);
+        ApplicationContext ctx = ApplicationContextListener.getBeanContainer(getServletContext());
+        this.dao = ctx.getBean("lifeStageDaoReplica", LifeStageDao.class);
     }
 
     @Override

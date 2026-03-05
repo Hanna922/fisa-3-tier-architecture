@@ -5,7 +5,7 @@ import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
 
-import javax.sql.DataSource;
+import org.springframework.context.ApplicationContext;
 
 import dev.sample.ApplicationContextListener;
 import dev.sample.dao.UserDao;
@@ -13,6 +13,14 @@ import dev.sample.dao.UserDao.User;
 
 @WebServlet("/login")
 public class LoginServlet extends HttpServlet {
+
+    private UserDao userDao;
+
+    @Override
+    public void init() throws ServletException {
+        ApplicationContext ctx = ApplicationContextListener.getBeanContainer(getServletContext());
+        userDao = ctx.getBean(UserDao.class);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -31,10 +39,6 @@ public class LoginServlet extends HttpServlet {
         String userId = req.getParameter("user_id");
         String password = req.getParameter("password");
 
-        DataSource ds = ApplicationContextListener
-                .getSourceDataSource(getServletContext());
-
-        UserDao userDao = new UserDao(ds);
         User user = userDao.findByUsername(userId);
 
         if (user == null || !user.password.equals(password)) {
